@@ -1,0 +1,206 @@
+/* =============================================================
+   game-ui.css — CCC GAME UI DESIGN SYSTEM (page chrome)
+   The website "design bar", ported to games:
+   - full-viewport dark base with a slow drifting mesh-gradient
+   - the Phaser canvas centered in a frosted-glass `.stage` card
+   - clean type scale (Space Grotesk display + Inter body)
+   - 8px spacing grid, one accent colour, everything aligned.
+   Drop this in, point index.html at it, and any game inherits
+   the look. The canvas/board art is untouched — this is chrome.
+   ============================================================= */
+
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&display=swap');
+
+:root {
+  /* one accent colour — David's brand orange */
+  --accent: #8b7bff;
+  --accent-soft: rgba(139, 123, 255, 0.18);
+
+  /* dark base + glass tokens (match gameui.js palette) */
+  --bg-0: #07070f;
+  --bg-1: #0b0b16;
+  --glass: rgba(18, 18, 30, 0.55);
+  --glass-border: rgba(255, 255, 255, 0.10);
+  --text: #f3f4fb;
+  --muted: #9aa0c0;
+
+  /* 8px spacing scale */
+  --s1: 8px;
+  --s2: 16px;
+  --s3: 24px;
+  --s4: 32px;
+  --radius: 20px;
+
+  /* type scale */
+  --font-display: 'Space Grotesk', system-ui, sans-serif;
+  --font-body: 'Inter', system-ui, sans-serif;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+  background: var(--bg-0);
+  color: var(--text);
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* -------------------------------------------------------------
+   MESH GRADIENT — 4 big blurred radial blobs drifting slowly.
+   Low opacity over a dark base so it reads as ambient depth,
+   never noisy. Lives on a fixed full-viewport layer behind all.
+   ------------------------------------------------------------- */
+body::before {
+  content: '';
+  position: fixed;
+  inset: -25%;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(38% 38% at 18% 22%, rgba(139, 123, 255, 0.24), transparent 70%),
+    radial-gradient(42% 42% at 82% 16%, rgba(91, 74, 255, 0.20), transparent 70%),
+    radial-gradient(46% 46% at 28% 86%, rgba(40, 156, 255, 0.18), transparent 72%),
+    radial-gradient(40% 40% at 84% 82%, rgba(255, 64, 129, 0.14), transparent 72%);
+  filter: blur(40px) saturate(115%);
+  animation: meshDrift 26s ease-in-out infinite alternate;
+}
+
+@keyframes meshDrift {
+  0%   { transform: translate3d(-2%, -1%, 0) scale(1.05) rotate(0deg); }
+  50%  { transform: translate3d(2%, 1.5%, 0) scale(1.12) rotate(4deg); }
+  100% { transform: translate3d(1%, -2%, 0) scale(1.06) rotate(-3deg); }
+}
+
+/* faint grain/vignette so the blobs feel grounded */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: radial-gradient(120% 90% at 50% 30%, transparent 40%, rgba(0, 0, 0, 0.55) 100%);
+}
+
+/* -------------------------------------------------------------
+   STAGE — frosted-glass card that frames + centers the canvas.
+   ------------------------------------------------------------- */
+.stage-wrap {
+  position: relative;
+  z-index: 1;
+  height: 100%;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--s3);
+}
+
+.stage {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  padding: var(--s3);
+  max-width: 100%;
+  max-height: 100%;
+
+  background: var(--glass);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius);
+  box-shadow:
+    0 24px 80px rgba(0, 0, 0, 0.55),
+    0 2px 0 rgba(255, 255, 255, 0.04) inset;
+  backdrop-filter: blur(22px) saturate(130%);
+  -webkit-backdrop-filter: blur(22px) saturate(130%);
+}
+
+/* slim header row: title (display font) + control cluster slot */
+.stage-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s2);
+  padding: 0 var(--s1);
+  min-height: 32px;
+}
+
+.stage-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 20px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text);
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  gap: var(--s1);
+}
+
+.stage-title .dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 14px var(--accent);
+}
+
+/* control cluster slot — mute / restart live here */
+.stage-controls {
+  display: flex;
+  align-items: center;
+  gap: var(--s1);
+}
+
+.stage-controls button {
+  appearance: none;
+  border: 1px solid var(--glass-border);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--muted);
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 13px;
+  letter-spacing: 0.02em;
+  height: 32px;
+  min-width: 32px;
+  padding: 0 12px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, transform 0.1s ease;
+}
+.stage-controls button:hover { background: rgba(255, 255, 255, 0.10); color: var(--text); }
+.stage-controls button:active { transform: scale(0.94); }
+
+/* the canvas mount — centered both axes, rounded to clip the art */
+#game {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--bg-1);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.05) inset;
+}
+
+canvas {
+  display: block;
+  touch-action: none;
+  /* scale to fit small screens while staying centered */
+  max-width: 100%;
+  max-height: 100%;
+  height: auto;
+}
+
+/* Responsive: tighten padding on small screens so the stage
+   fills the viewport without clipping the framed canvas. */
+@media (max-width: 600px), (max-height: 760px) {
+  .stage-wrap { padding: var(--s1); }
+  .stage { padding: var(--s2); gap: var(--s1); border-radius: 16px; }
+  .stage-title { font-size: 16px; }
+}

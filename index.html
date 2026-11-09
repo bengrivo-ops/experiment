@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>Lumi's Constellations · a retrieval-practice game</title>
+  <meta name="description" content="A classroom learning game built on retrieval practice, spacing, interleaving and explanatory feedback." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="game-ui.css" />
+  <link rel="stylesheet" href="teacher.css" />
+</head>
+<body>
+  <div class="stage-wrap">
+    <div class="stage">
+      <div class="stage-header">
+        <h1 class="stage-title"><span class="dot"></span>Lumi's Constellations</h1>
+        <div class="stage-controls" id="controls">
+          <button id="btn-teacher" title="Teacher settings and custom questions">TEACHER</button>
+          <button id="btn-mute"  title="Mute sound">SOUND</button>
+          <button id="btn-reset" title="Back to topics">MENU</button>
+        </div>
+      </div>
+      <div id="game"></div>
+    </div>
+  </div>
+
+  <!-- Teacher panel (HTML so typing questions is comfortable) -->
+  <div id="teacher" class="t-modal" hidden role="dialog" aria-modal="true" aria-labelledby="t-title">
+    <div class="t-card">
+      <div class="t-head">
+        <h2 id="t-title">Teacher panel</h2>
+        <button class="t-x" id="t-close" aria-label="Close">✕</button>
+      </div>
+      <div class="t-tabs" role="tablist">
+        <button class="t-tab on" data-tab="deck" role="tab">My questions</button>
+        <button class="t-tab" data-tab="settings" role="tab">Settings</button>
+        <button class="t-tab" data-tab="why" role="tab">Why it works</button>
+      </div>
+
+      <section class="t-pane" data-pane="deck">
+        <p>Write one question per line as <code>question = answer</code>. You can add an explanation students see when they get it wrong: <code>question = answer | why</code>.</p>
+        <textarea id="t-deck" spellcheck="false" placeholder="Capital of France = Paris | Paris has been France's capital since the 10th century
+H2O = water | 2 hydrogen atoms + 1 oxygen atom
+photosynthesis makes = glucose | plants turn light, water and CO2 into sugar
+8 squared = 64 | 8 × 8 = 64"></textarea>
+        <div class="t-row">
+          <span id="t-status" class="t-status">Add at least 4 questions. 8 to 12 works best.</span>
+          <div class="t-actions">
+            <button class="t-btn ghost" id="t-sample">Load example</button>
+            <button class="t-btn" id="t-save">Save deck</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="t-pane" data-pane="settings" hidden>
+        <label class="t-opt">
+          <input type="checkbox" id="t-calm" />
+          <span><b>Calm mode</b><br/>Crystals never fall, so there's no time pressure. Good for anxious learners, SEN support, or brand-new content.</span>
+        </label>
+        <div class="t-opt">
+          <span><b>Items per session</b><br/>Each item comes up in at least two levels. Fewer items means a shorter session and more repetition per item.</span>
+          <select id="t-size">
+            <option value="6">6 items (~1 min)</option>
+            <option value="8">8 items (~1.5 min)</option>
+            <option value="10">10 items (~2 min)</option>
+            <option value="12">12 items (~3 min)</option>
+          </select>
+        </div>
+        <p class="t-note">Privacy: the game runs in the browser. There are no accounts or tracking, and nothing is sent anywhere. Settings and your deck are saved on this device only.</p>
+      </section>
+
+      <section class="t-pane" data-pane="why" hidden>
+        <ul class="t-why">
+          <li><b>Retrieval practice:</b> students pull answers out of memory instead of re-reading. Recalling something strengthens memory more than reviewing it.</li>
+          <li><b>Feedback that explains:</b> every mistake shows the right answer <i>and</i> a short reason or strategy, while the question is still fresh.</li>
+          <li><b>Spacing:</b> a missed item comes back two questions later, and again in the final level. It never repeats straight away.</li>
+          <li><b>Interleaving:</b> the final level mixes every item, so students have to work out which fact or strategy applies.</li>
+          <li><b>Scaffolding:</b> new items arrive in small chunks. Choices go from 2 to 3 to 4, and time pressure only starts once items are familiar.</li>
+          <li><b>Mastery, low stakes:</b> no lives and no game over. A level ends when every item has been answered correctly, and progress is never taken away.</li>
+          <li><b>Diagnostic distractors:</b> wrong options in the built-in topics are common misconceptions (e.g. 1/4 → 0.4, "librería" = library), so the errors tell you something.</li>
+          <li><b>Formative data:</b> the end screen shows first-try accuracy and which items to revisit. <i>Copy report</i> gives you a text summary you can paste anywhere.</li>
+        </ul>
+      </section>
+    </div>
+  </div>
+
+  <!-- Phaser 3.80.1, bundled locally so the game also works behind school firewalls -->
+  <script src="vendor/phaser.min.js"></script>
+
+  <script>
+    window.__fontsReady = (document.fonts && document.fonts.ready)
+      ? Promise.race([
+          Promise.all([
+            document.fonts.load('700 44px "Space Grotesk"'),
+            document.fonts.load('600 15px "Inter"'),
+          ]).then(() => document.fonts.ready),
+          new Promise((r) => setTimeout(r, 1500)),
+        ])
+      : Promise.resolve();
+  </script>
+
+  <script src="src/config.js"></script>
+  <script src="src/content.js"></script>
+  <script src="src/learning.js"></script>
+  <script src="src/gameui.js"></script>
+  <script src="src/audio.js"></script>
+  <script src="src/juice.js"></script>
+  <script src="src/teacher.js"></script>
+  <script src="src/scenes/Boot.js"></script>
+  <script src="src/scenes/Preload.js"></script>
+  <script src="src/scenes/Menu.js"></script>
+  <script src="src/scenes/Game.js"></script>
+  <script src="src/scenes/Results.js"></script>
+  <script src="src/main.js"></script>
+</body>
+</html>
