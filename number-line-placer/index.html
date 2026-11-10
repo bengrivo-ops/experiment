@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Number Line Placer</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="description" content="Place whole numbers and fractions on a number line, see where they really go, and watch the line fill up.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lexend:wght@400;500;600;700&display=swap">
+<style>
+/* Layout: one long number line is the whole stage; the number to place sits above it like a card,
+   feedback appears beneath it. Level picker and round summary use the same column. */
+:root {
+  --bg: #f4f2fb;
+  --surface: #ffffff;
+  --ink: #221d3a;
+  --muted: #625c7c;
+  --line: #dcd7ec;
+  --axis: #221d3a;
+  --pin: #e8590c;        /* the pupil's guess */
+  --true: #2b8a3e;       /* the real position */
+  --known: #5f3dc4;      /* numbers already on the line */
+  --hint: #9b8fd0;
+  --btn: #221d3a;
+  --btn-ink: #ffffff;
+  --gold: #f2b705;
+  --font: "Lexend", "Verdana", system-ui, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #15121f; --surface: #1e1a2d; --ink: #eeeaf8; --muted: #a9a2c3; --line: #332d4a; --axis: #eeeaf8;
+    --pin: #ff8a3d; --true: #51cf66; --known: #b197fc; --hint: #6c5fa8; --btn: #eeeaf8; --btn-ink: #15121f; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #15121f; --surface: #1e1a2d; --ink: #eeeaf8; --muted: #a9a2c3; --line: #332d4a; --axis: #eeeaf8;
+  --pin: #ff8a3d; --true: #51cf66; --known: #b197fc; --hint: #6c5fa8; --btn: #eeeaf8; --btn-ink: #15121f; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { margin: 0; }
+body {
+  background: var(--bg); color: var(--ink); font-family: var(--font); font-size: 16px; line-height: 1.5;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 16px 40px;
+}
+.app { max-width: 1100px; margin: 0 auto; display: grid; gap: 16px; }
+h1, h2, h3 { margin: 0; line-height: 1.2; font-weight: 600; text-wrap: balance; }
+button, select { font: inherit; color: inherit; }
+:focus-visible { outline: 3px solid var(--pin); outline-offset: 2px; }
+.muted { color: var(--muted); }
+.label { font-size: 12px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 20px; min-width: 0; }
+.row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.btn { appearance: none; border: 2px solid var(--btn); background: var(--btn); color: var(--btn-ink); font-weight: 600; padding: 10px 18px; border-radius: 10px; cursor: pointer; line-height: 1.2; }
+.btn.ghost { background: transparent; color: var(--ink); border-color: var(--line); }
+.btn.ghost:hover { border-color: var(--ink); }
+.btn.big { font-size: 20px; padding: 14px 26px; }
+.btn:disabled { opacity: .4; cursor: default; }
+.kbd { font-size: 12px; border: 1px solid currentColor; border-radius: 5px; padding: 0 5px; margin-left: 8px; opacity: .7; font-weight: 600; }
+
+/* header */
+.bar { display: flex; flex-wrap: wrap; gap: 12px 20px; align-items: center; justify-content: space-between; }
+.brand { display: flex; gap: 12px; align-items: center; }
+.brand h1 { font-size: 22px; font-weight: 700; }
+
+/* level picker */
+.modes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.mode h2 { font-size: 20px; margin-bottom: 4px; }
+.levels { display: grid; gap: 10px; margin-top: 14px; }
+.level { appearance: none; text-align: left; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 12px; align-items: center; border: 2px solid var(--line); background: var(--surface); border-radius: 12px; padding: 12px 14px; cursor: pointer; }
+.level:hover { border-color: var(--ink); }
+.level b { font-size: 17px; }
+.level small { color: var(--muted); grid-column: 1; }
+.stars { grid-row: 1 / span 2; grid-column: 2; font-size: 20px; letter-spacing: 2px; color: var(--line); white-space: nowrap; }
+.stars .on { color: var(--gold); }
+.mini-line { grid-column: 1 / -1; height: 18px; }
+.settings { display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: center; font-size: 15px; }
+.settings label { display: flex; gap: 8px; align-items: center; cursor: pointer; }
+.settings input[type=checkbox] { width: 18px; height: 18px; accent-color: var(--ink); }
+.settings select { border: 1px solid var(--line); border-radius: 8px; padding: 5px 8px; background: var(--surface); }
+
+/* play */
+.play-head { display: flex; flex-wrap: wrap; gap: 10px 16px; justify-content: space-between; align-items: center; }
+.dots { display: flex; gap: 6px; flex-wrap: wrap; }
+.dots i { width: 14px; height: 14px; border-radius: 50%; background: var(--line); }
+.dots i.s3 { background: var(--true); } .dots i.s2 { background: #74b816; } .dots i.s1 { background: var(--gold); } .dots i.s0 { background: var(--pin); }
+.dots i.now { outline: 2px solid var(--ink); outline-offset: 2px; }
+.stage { display: grid; gap: 14px; justify-items: center; text-align: center; }
+.prompt { font-size: 22px; font-weight: 600; display: flex; flex-wrap: wrap; gap: 14px; align-items: center; justify-content: center; }
+.card { min-width: 96px; padding: 10px 22px; border-radius: 14px; border: 3px solid var(--pin); background: var(--surface); font-size: 44px; font-weight: 700; line-height: 1; display: inline-flex; align-items: center; justify-content: center; gap: 8px; font-variant-numeric: tabular-nums; }
+.frac { display: inline-grid; justify-items: center; line-height: 1; font-size: .78em; }
+.frac span:first-child { border-bottom: 3px solid currentColor; padding: 0 4px 3px; }
+.frac span:last-child { padding-top: 3px; }
+.line-wrap { width: 100%; overflow-x: auto; }
+#line { display: block; width: 100%; min-width: 600px; height: auto; touch-action: none; user-select: none; -webkit-user-select: none; cursor: crosshair; }
+#line.locked { cursor: default; }
+.ax { stroke: var(--axis); stroke-width: 4; stroke-linecap: round; }
+.tick { stroke: var(--axis); stroke-width: 3; }
+.tick.known { stroke: var(--known); }
+.tick.hint { stroke: var(--hint); stroke-width: 2; stroke-dasharray: 4 4; }
+.lbl { font: 700 22px var(--font); fill: var(--axis); text-anchor: middle; }
+.lbl.small { font-size: 18px; }
+.lbl.known { fill: var(--known); }
+.lbl.true { fill: var(--true); }
+.lbl.hint { fill: var(--hint); font-size: 15px; font-weight: 600; }
+.fbar { stroke: currentColor; stroke-width: 2; }
+.pin { fill: var(--pin); }
+.pin-line { stroke: var(--pin); stroke-width: 3; }
+.true-line { stroke: var(--true); stroke-width: 3; }
+.err-bracket { fill: none; stroke: var(--muted); stroke-width: 2; stroke-dasharray: 3 4; }
+.actions { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
+.feedback { max-width: 640px; width: 100%; border-radius: 12px; padding: 12px 16px; border: 1px solid var(--line); border-left: 6px solid var(--muted); text-align: left; background: var(--surface); }
+.feedback b { display: block; font-size: 18px; }
+.feedback.s3 { border-left-color: var(--true); } .feedback.s2 { border-left-color: #74b816; } .feedback.s1 { border-left-color: var(--gold); } .feedback.s0 { border-left-color: var(--pin); }
+.help { font-size: 14px; color: var(--muted); }
+
+/* summary */
+.summary { display: grid; gap: 16px; }
+.big-stars { font-size: 44px; letter-spacing: 6px; color: var(--line); }
+.big-stars .on { color: var(--gold); }
+.table-wrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; min-width: 420px; font-variant-numeric: tabular-nums; }
+th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); }
+th { font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+.why { font-size: 14px; color: var(--muted); display: grid; gap: 6px; }
+.why a { color: inherit; }
+
+@media (max-width: 760px) { .modes { grid-template-columns: minmax(0, 1fr); } .card { font-size: 36px; } }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="bar">
+    <div class="brand">
+      <svg width="44" height="26" viewBox="0 0 44 26" aria-hidden="true"><line x1="2" y1="18" x2="42" y2="18" stroke="var(--axis)" stroke-width="3" stroke-linecap="round"/><line x1="4" y1="12" x2="4" y2="24" stroke="var(--axis)" stroke-width="2.5"/><line x1="40" y1="12" x2="40" y2="24" stroke="var(--axis)" stroke-width="2.5"/><path d="M27 2 h8 v6 l-4 6 l-4 -6z" fill="var(--pin)"/></svg>
+      <h1>Number Line Placer</h1>
+    </div>
+    <div class="row">
+      <button class="btn ghost" type="button" id="nav-levels">Levels</button>
+    </div>
+  </header>
+
+  <!-- ===== LEVELS ===== -->
+  <section id="view-levels" style="display:grid;gap:16px" aria-label="Choose a level">
+    <div class="modes">
+      <div class="panel mode"><h2>Whole numbers</h2><span class="muted">Place numbers between the marked points, from 0–10 up to 0–1,000.</span><div class="levels" id="levels-whole"></div></div>
+      <div class="panel mode"><h2>Fractions</h2><span class="muted">Fractions are numbers too: each one has its own spot on the line.</span><div class="levels" id="levels-frac"></div></div>
+    </div>
+    <div class="panel" style="display:grid;gap:14px">
+      <span class="label">Teacher settings</span>
+      <div class="settings">
+        <label>Numbers per round <select id="set-count"><option value="6">6</option><option value="8">8</option><option value="10">10</option></select></label>
+        <label><input type="checkbox" id="set-keep"> Keep placed numbers on the line</label>
+        <label><input type="checkbox" id="set-hint"> Allow hints</label>
+      </div>
+      <div class="why">
+        <span><b style="color:var(--ink)">Why it works.</b> How accurately children place numbers on a line predicts their maths achievement, and practice with feedback on the true position makes their mental number line more linear. For fractions, placing them on a line builds the idea that a fraction is one number with a size, which is what fraction interventions that use number lines target.</span>
+        <span>Every placement shows the real spot and how far off the guess was. Placed numbers stay on the line as new reference points. There is no timer, so pupils reason instead of guessing.</span>
+        <span>Sources: <a href="https://www.cmu.edu/dietrich/psychology/cs/research-teaching/docs/2013LaskiSieglerNumberBoardGames.pdf" target="_blank" rel="noopener">Siegler and colleagues on number line estimation</a> · <a href="https://ies.ed.gov/ncee/wwc/PracticeGuide/15" target="_blank" rel="noopener">IES practice guide: developing effective fractions instruction</a></span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== PLAY ===== -->
+  <section id="view-play" hidden aria-label="Play">
+    <div class="panel" style="display:grid;gap:18px">
+      <div class="play-head">
+        <div style="display:grid;gap:2px"><span class="label" id="play-level"></span><span class="muted" style="font-size:14px" id="play-sub"></span></div>
+        <div class="dots" id="dots" aria-hidden="true"></div>
+      </div>
+      <div class="stage">
+        <div class="prompt"><span>Where does</span><span class="card" id="card"></span><span>go?</span></div>
+        <div class="help" id="help">Tap or drag on the line to move the pin. Arrow keys work too.</div>
+        <div class="line-wrap"><svg id="line" viewBox="0 0 1000 270" tabindex="0" role="slider" aria-label="Number line. Use left and right arrows to move the pin."></svg></div>
+        <div class="feedback" id="feedback" hidden aria-live="polite"></div>
+        <div class="actions">
+          <button class="btn big" type="button" id="place" disabled>Place it<span class="kbd">Enter</span></button>
+          <button class="btn big ghost" type="button" id="hint">Hint<span class="kbd">H</span></button>
+          <button class="btn big" type="button" id="next" hidden>Next number<span class="kbd">Enter</span></button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== SUMMARY ===== -->
+  <section id="view-summary" hidden aria-label="Round summary">
+    <div class="panel summary">
+      <div class="row" style="justify-content:space-between;align-items:flex-start">
+        <div style="display:grid;gap:4px"><span class="label" id="sum-level"></span><h2 id="sum-title"></h2><span class="muted" id="sum-sub"></span></div>
+        <div class="big-stars" id="sum-stars" aria-hidden="true"></div>
+      </div>
+      <div class="line-wrap"><svg id="sum-line" viewBox="0 0 1000 270" style="display:block;width:100%;min-width:600px;height:auto" role="img" aria-label="The finished number line"></svg></div>
+      <div class="table-wrap"><table><thead><tr><th>Number</th><th>Your pin</th><th>How far off</th><th>Hint</th></tr></thead><tbody id="sum-rows"></tbody></table></div>
+      <div class="row">
+        <button class="btn" type="button" id="sum-again">Play this level again</button>
+        <button class="btn" type="button" id="sum-next">Next level</button>
+        <button class="btn ghost" type="button" id="sum-levels">All levels</button>
+      </div>
+    </div>
+  </section>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  const $ = (s) => document.querySelector(s);
+  const el = (t, c, h) => { const e = document.createElement(t); if (c) e.className = c; if (h != null) e.innerHTML = h; return e; };
+  const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const rnd = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
+  const shuffle = (a) => { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const store = {
+    get(k, d) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch (e) { return d; } },
+    set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* storage blocked */ } },
+  };
+
+  // ------------------------------------------------------------
+  // Numbers: {v, w, n, d} — whole numbers have only w; fractions n/d with optional whole part w
+  // ------------------------------------------------------------
+  const I = (k) => ({ v: k, w: k });
+  const F = (n, d) => ({ v: n / d, n, d, w: 0 });
+  const M = (w, n, d) => ({ v: w + n / d, w, n, d }); // mixed number
+  const gcd = (a, b) => (b ? gcd(b, a % b) : a);
+  const isFrac = (x) => x.d != null;
+  const text = (x) => (!isFrac(x) ? String(x.w) : (x.w ? `${x.w} ${x.n}/${x.d}` : `${x.n}/${x.d}`));
+  const html = (x) => (!isFrac(x) ? String(x.w) : `${x.w ? `<span>${x.w}</span>` : ''}<span class="frac"><span>${x.n}</span><span>${x.d}</span></span>`);
+  const fmtPin = (v, L) => (L.mode === 'whole' ? String(Math.round(v)) : nearestFracText(v, L));
+  function nearestFracText(v, L) {
+    // describe a pin position in fractions the pupil knows: nearest of the level's denominators
+    let best = null;
+    for (const d of L.denoms) {
+      const n = Math.round(v * d);
+      const err = Math.abs(v - n / d);
+      if (!best || err < best.err - 1e-9) best = { n, d, err };
+    }
+    const { n, d } = best;
+    if (n === 0) return '0';
+    if (n % d === 0) return String(n / d);
+    if (n > d && L.max > 1) return `${Math.floor(n / d)} ${n % d}/${d}`;
+    return `${n}/${d}`;
+  }
+
+  const LEVELS = [
+    { id: 'w1', mode: 'whole', name: '0 to 10', sub: 'Marked: 0, 5, 10', min: 0, max: 10, bench: [I(0), I(5), I(10)], pool: () => [1, 2, 3, 4, 6, 7, 8, 9].map(I) },
+    { id: 'w2', mode: 'whole', name: '0 to 20', sub: 'Marked: 0, 10, 20', min: 0, max: 20, bench: [I(0), I(10), I(20)], pool: () => [...Array(19).keys()].map((k) => k + 1).filter((k) => k !== 10).map(I) },
+    { id: 'w3', mode: 'whole', name: '0 to 100', sub: 'Marked: 0, 50, 100', min: 0, max: 100, bench: [I(0), I(50), I(100)], pool: () => spreadInts(3, 97, [50]) },
+    { id: 'w4', mode: 'whole', name: '0 to 100, ends only', sub: 'Marked: 0 and 100', min: 0, max: 100, bench: [I(0), I(100)], pool: () => spreadInts(4, 96, []) },
+    { id: 'w5', mode: 'whole', name: '0 to 1,000', sub: 'Marked: 0, 500, 1,000', min: 0, max: 1000, bench: [I(0), I(500), I(1000)], pool: () => spreadInts(20, 980, [500]) },
+    { id: 'f1', mode: 'frac', name: 'Halves, quarters, eighths', sub: 'Marked: 0, 1/2, 1', min: 0, max: 1, denoms: [2, 4, 8], bench: [I(0), F(1, 2), I(1)], pool: () => [F(1, 4), F(3, 4), F(1, 8), F(3, 8), F(5, 8), F(7, 8), F(1, 4), F(3, 4)] },
+    { id: 'f2', mode: 'frac', name: 'Thirds, fifths, tenths', sub: 'Marked: 0 and 1', min: 0, max: 1, denoms: [3, 5, 6, 10], bench: [I(0), I(1)], pool: () => [F(1, 3), F(2, 3), F(1, 5), F(2, 5), F(3, 5), F(4, 5), F(1, 6), F(5, 6), F(1, 10), F(3, 10), F(7, 10), F(9, 10)] },
+    { id: 'f3', mode: 'frac', name: 'Equivalent fractions', sub: 'Marked: 0, 1/2, 1. Some share a spot!', min: 0, max: 1, denoms: [2, 3, 4, 6, 8, 10, 12], bench: [I(0), F(1, 2), I(1)], pool: () => [F(2, 4), F(3, 6), F(4, 8), F(1, 4), F(2, 8), F(3, 4), F(6, 8), F(2, 6), F(1, 3), F(4, 10), F(2, 5), F(9, 12)] },
+    { id: 'f4', mode: 'frac', name: 'Beyond 1', sub: 'Marked: 0, 1, 2', min: 0, max: 2, denoms: [2, 3, 4], bench: [I(0), I(1), I(2)], pool: () => [F(1, 2), F(3, 2), F(5, 4), F(7, 4), F(4, 3), F(5, 3), M(1, 1, 2), M(1, 1, 4), M(1, 3, 4), M(1, 2, 3), F(3, 4)] },
+  ];
+  function spreadInts(lo, hi, avoid) {
+    // integers spread over the whole range, so every round covers low, middle and high numbers
+    const bands = 10, out = [], w = (hi - lo) / bands;
+    for (let b = 0; b < bands; b++) {
+      let k, guard = 0;
+      do { k = rnd(Math.ceil(lo + b * w), Math.floor(lo + (b + 1) * w)); guard++; } while (avoid.some((a) => Math.abs(a - k) < (hi > 200 ? 10 : 2)) && guard < 50);
+      out.push(I(k));
+    }
+    return out;
+  }
+
+  const settings = Object.assign({ count: 8, keep: true, hint: true }, store.get('nlp-settings', {}));
+  const saveSettings = () => store.set('nlp-settings', settings);
+  const best = () => store.get('nlp-best', {});
+
+  // ------------------------------------------------------------
+  // Scoring: error as a percentage of the line's length
+  // ------------------------------------------------------------
+  const scoreOf = (err) => (err <= 3 ? 3 : err <= 7 ? 2 : err <= 15 ? 1 : 0);
+  const roundStars = (avg) => (avg <= 5 ? 3 : avg <= 10 ? 2 : avg <= 20 ? 1 : 0);
+
+  // ------------------------------------------------------------
+  // Views
+  // ------------------------------------------------------------
+  function show(v) {
+    ['levels', 'play', 'summary'].forEach((n) => { $('#view-' + n).hidden = n !== v; });
+    if (v === 'levels') renderLevels();
+    window.scrollTo(0, 0);
+  }
+  $('#nav-levels').onclick = () => show('levels');
+
+  function starsHTML(n, max) { return Array.from({ length: max }, (_, i) => `<span class="${i < n ? 'on' : ''}">★</span>`).join(''); }
+  function renderLevels() {
+    const b = best();
+    ['whole', 'frac'].forEach((mode) => {
+      const box = $(mode === 'whole' ? '#levels-whole' : '#levels-frac');
+      box.innerHTML = '';
+      LEVELS.filter((L) => L.mode === mode).forEach((L) => {
+        const rec = b[L.id];
+        const btn = el('button', 'level', `<b>${L.name}</b><span class="stars" aria-label="${rec ? rec.stars : 0} of 3 stars">${starsHTML(rec ? rec.stars : 0, 3)}</span><small>${esc(L.sub)}${rec ? ` · best average error ${rec.avg.toFixed(1)}%` : ''}</small>`);
+        btn.type = 'button';
+        btn.onclick = () => startRound(L.id);
+        box.append(btn);
+      });
+    });
+    $('#set-count').value = String(settings.count);
+    $('#set-keep').checked = settings.keep;
+    $('#set-hint').checked = settings.hint;
+  }
+  $('#set-count').onchange = (e) => { settings.count = +e.target.value; saveSettings(); };
+  $('#set-keep').onchange = (e) => { settings.keep = e.target.checked; saveSettings(); };
+  $('#set-hint').onchange = (e) => { settings.hint = e.target.checked; saveSettings(); };
+
+  // ------------------------------------------------------------
+  // Round
+  // ------------------------------------------------------------
+  let R = null;
+  function startRound(id) {
+    const L = LEVELS.find((x) => x.id === id);
+    let pool = L.pool();
+    if (L.mode === 'frac') {
+      // distinct labels, never a benchmark itself
+      const seen = new Set();
+      pool = shuffle(pool).filter((x) => { const t = text(x); if (seen.has(t) || L.bench.some((b) => text(b) === t)) return false; seen.add(t); return true; });
+    } else pool = shuffle(pool).filter((x) => !L.bench.some((b) => b.v === x.v));
+    // whole numbers: don't repeat a value in one round
+    const uniq = []; const vs = new Set();
+    pool.forEach((x) => { const k = text(x); if (!vs.has(k)) { vs.add(k); uniq.push(x); } });
+    const items = uniq.slice(0, settings.count);
+    R = { L, items, i: 0, pin: null, phase: 'place', results: [], known: [], hintOn: false };
+    $('#play-level').textContent = (L.mode === 'whole' ? 'Whole numbers · ' : 'Fractions · ') + L.name;
+    $('#play-sub').textContent = L.sub;
+    $('#hint').hidden = !settings.hint;
+    show('play');
+    nextItem();
+  }
+
+  function nextItem() {
+    if (R.i >= R.items.length) return finishRound();
+    R.pin = null; R.phase = 'place'; R.hintOn = false;
+    const x = R.items[R.i];
+    $('#card').innerHTML = html(x);
+    $('#card').setAttribute('aria-label', text(x));
+    $('#feedback').hidden = true;
+    $('#place').hidden = false; $('#place').disabled = true;
+    $('#hint').disabled = false;
+    $('#next').hidden = true;
+    $('#line').classList.remove('locked');
+    renderDots();
+    draw();
+    $('#line').focus({ preventScroll: true });
+  }
+
+  function renderDots() {
+    $('#dots').innerHTML = R.items.map((_, k) => {
+      const r = R.results[k];
+      return `<i class="${r ? 's' + r.score : ''} ${k === R.i && R.phase === 'place' ? 'now' : ''}"></i>`;
+    }).join('');
+  }
+
+  // ------------------------------------------------------------
+  // Drawing the line (SVG, viewBox 1000 × 240)
+  // ------------------------------------------------------------
+  const X0 = 70, X1 = 930, AY = 180;
+  const xOf = (v, L) => X0 + ((v - L.min) / (L.max - L.min)) * (X1 - X0);
+  const vOf = (x, L) => L.min + clamp((x - X0) / (X1 - X0), 0, 1) * (L.max - L.min);
+
+  function labelSVG(x, cls, xPos, y) {
+    if (!isFrac(x)) return `<text class="lbl ${cls}" x="${xPos}" y="${y}">${esc(x.w.toLocaleString('en-GB'))}</text>`;
+    const off = x.w ? 12 : 0;
+    let s = '';
+    if (x.w) s += `<text class="lbl ${cls}" x="${xPos - 12}" y="${y - 8}" style="text-anchor:end">${x.w}</text>`;
+    const w = Math.max(String(x.n).length, String(x.d).length) * 12 + 8;
+    s += `<text class="lbl small ${cls}" x="${xPos + off}" y="${y - 18}">${x.n}</text>`;
+    s += `<line x1="${xPos + off - w / 2}" x2="${xPos + off + w / 2}" y1="${y - 13}" y2="${y - 13}" class="fbar" style="color:var(--${cls === 'known' ? 'known' : cls === 'true' ? 'true' : 'axis'})"/>`;
+    s += `<text class="lbl small ${cls}" x="${xPos + off}" y="${y + 6}">${x.d}</text>`;
+    return s;
+  }
+
+  function lineSVG(o) {
+    const L = R.L;
+    let s = `<line class="ax" x1="${X0 - 20}" x2="${X1 + 20}" y1="${AY}" y2="${AY}"/>`;
+    // hint: halfway mark, and for fractions the partition into the card's denominator
+    if (o.hint) {
+      const x = o.hint;
+      if (isFrac(x)) {
+        for (let k = 1; k < x.d * (L.max - L.min); k++) { const xp = xOf(L.min + k / x.d, L); s += `<line class="tick hint" x1="${xp}" x2="${xp}" y1="${AY - 14}" y2="${AY + 14}"/>`; }
+        s += `<text class="lbl hint" x="${(X0 + X1) / 2}" y="${AY + 82}">The line is split into ${({ 2: 'halves', 3: 'thirds', 4: 'quarters', 5: 'fifths', 6: 'sixths', 8: 'eighths', 10: 'tenths', 12: 'twelfths' })[x.d] || x.d + 'ths'}${L.max > 1 ? ' in each whole' : ''}. Count ${x.w ? x.w * x.d + x.n : x.n} of them from 0.</text>`;
+      } else {
+        const known = [...L.bench, ...R.known].map((k) => k.v).sort((a, b) => a - b);
+        let lo = L.min, hi = L.max;
+        known.forEach((k) => { if (k <= x.v) lo = Math.max(lo, k); if (k >= x.v) hi = Math.min(hi, k); });
+        const mid = (lo + hi) / 2;
+        const xp = xOf(mid, L);
+        s += `<line class="tick hint" x1="${xp}" x2="${xp}" y1="${AY - 18}" y2="${AY + 18}"/>`;
+        s += `<text class="lbl hint" x="${xp}" y="${AY + 44}">${Number.isInteger(mid) ? mid.toLocaleString('en-GB') : mid.toFixed(1)}</text>`;
+        s += `<text class="lbl hint" x="${(X0 + X1) / 2}" y="${AY + 82}">${x.v} is between ${lo.toLocaleString('en-GB')} and ${hi.toLocaleString('en-GB')}. The dashed mark is halfway between them.</text>`;
+      }
+    }
+    // benchmarks (below the line)
+    L.bench.forEach((b) => {
+      const xp = xOf(b.v, L);
+      s += `<line class="tick" x1="${xp}" x2="${xp}" y1="${AY - 16}" y2="${AY + 16}"/>`;
+      s += labelSVG(b, '', xp, AY + (isFrac(b) ? 58 : 48));
+    });
+    // numbers placed earlier in the round (above the line, staggered so labels don't collide)
+    const rows = [];
+    const placeLabel = (xp) => { let r = 0; while ((rows[r] || []).some((q) => Math.abs(q - xp) < 52)) r++; (rows[r] = rows[r] || []).push(xp); return r; };
+    o.known.forEach((k) => {
+      const xp = xOf(k.v, L);
+      const r = placeLabel(xp);
+      s += `<line class="tick known" x1="${xp}" x2="${xp}" y1="${AY - 14}" y2="${AY + 14}"/>`;
+      s += labelSVG(k, 'known', xp, AY - 30 - r * (isFrac(k) ? 46 : 30));
+    });
+    // reveal: true position + the pupil's pin
+    if (o.reveal) {
+      const { x, pin } = o.reveal;
+      const xt = xOf(x.v, L), xp = xOf(pin, L);
+      s += `<path class="err-bracket" d="M${Math.min(xt, xp)} ${AY + 18} v6 H${Math.max(xt, xp)} v-6"/>`;
+      s += `<line class="true-line" x1="${xt}" x2="${xt}" y1="${AY - 22}" y2="${AY + 22}"/>`;
+      const r = placeLabel(xt);
+      s += labelSVG(x, 'true', xt, AY - 30 - r * 46);
+    }
+    if (o.pin != null) {
+      const xp = xOf(o.pin, L);
+      s += `<line class="pin-line" x1="${xp}" x2="${xp}" y1="34" y2="${AY + 10}" opacity="${o.reveal ? 0.45 : 1}" style="stroke-width:2"/>`;
+      s += `<path class="pin" d="M${xp - 12} 4 h24 v16 l-12 16 l-12 -16z" opacity="${o.reveal ? 0.45 : 1}"/>`;
+    }
+    return s;
+  }
+
+  function draw() {
+    const x = R.items[R.i];
+    const reveal = R.phase === 'reveal' ? { x, pin: R.pin } : null;
+    const known = settings.keep ? R.known : [];
+    $('#line').innerHTML = lineSVG({ pin: R.pin, hint: R.hintOn ? x : null, known, reveal });
+    $('#line').setAttribute('aria-valuetext', R.pin == null ? 'No pin placed yet' : `Pin at ${Math.round(((R.pin - R.L.min) / (R.L.max - R.L.min)) * 100)}% along the line`);
+  }
+
+  // ------------------------------------------------------------
+  // Input: tap/drag on the line, arrow keys
+  // ------------------------------------------------------------
+  const svg = $('#line');
+  let dragging = false;
+  function svgX(e) { const p = svg.createSVGPoint(); p.x = e.clientX; p.y = e.clientY; return p.matrixTransform(svg.getScreenCTM().inverse()).x; }
+  function setPin(v) { R.pin = v; $('#place').disabled = false; draw(); }
+  svg.addEventListener('pointerdown', (e) => { if (!R || R.phase !== 'place') return; dragging = true; svg.setPointerCapture(e.pointerId); setPin(vOf(svgX(e), R.L)); });
+  svg.addEventListener('pointermove', (e) => { if (dragging && R.phase === 'place') setPin(vOf(svgX(e), R.L)); });
+  svg.addEventListener('pointerup', () => { dragging = false; });
+  svg.addEventListener('pointercancel', () => { dragging = false; });
+  document.addEventListener('keydown', (e) => {
+    if ($('#view-play').hidden || !R) return;
+    const span = R.L.max - R.L.min;
+    if (R.phase === 'place' && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
+      e.preventDefault();
+      const step = span * (e.shiftKey ? 0.002 : 0.01) * (e.key === 'ArrowLeft' ? -1 : 1);
+      setPin(clamp((R.pin == null ? R.L.min + span / 2 : R.pin) + step, R.L.min, R.L.max));
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (R.phase === 'place' && R.pin != null) place(); else if (R.phase === 'reveal') { R.i++; nextItem(); }
+    } else if ((e.key === 'h' || e.key === 'H') && R.phase === 'place' && settings.hint) showHint();
+  });
+
+  // ------------------------------------------------------------
+  // Place + feedback
+  // ------------------------------------------------------------
+  $('#place').onclick = () => place();
+  $('#hint').onclick = () => showHint();
+  $('#next').onclick = () => { R.i++; nextItem(); };
+  function showHint() { if (R.phase !== 'place') return; R.hintOn = true; $('#hint').disabled = true; draw(); }
+
+  function place() {
+    if (R.phase !== 'place' || R.pin == null) return;
+    const L = R.L, x = R.items[R.i];
+    const err = (Math.abs(R.pin - x.v) / (L.max - L.min)) * 100;
+    const score = scoreOf(err);
+    R.results.push({ x, pin: R.pin, err, score, hint: R.hintOn });
+    R.phase = 'reveal';
+    $('#line').classList.add('locked');
+    draw();
+    // feedback text
+    const dir = R.pin > x.v ? 'right' : 'left';
+    const head = ['Not quite.', 'Close.', 'Very close!', 'Spot on!'][score];
+    let body = score === 3 ? `${text(x)} is right where you put it.` : `Your pin was at about ${fmtPin(R.pin, L)}. ${text(x)} is a little to the ${dir === 'right' ? 'left' : 'right'} of that.`;
+    if (score <= 1) body += ' ' + strategy(x);
+    const twin = [...L.bench, ...R.known].find((k) => Math.abs(k.v - x.v) < 1e-9 && text(k) !== text(x));
+    if (twin) body += ` ${text(x)} and ${text(twin)} are equivalent: they sit on exactly the same point.`;
+    const f = $('#feedback');
+    f.className = 'feedback s' + score;
+    f.innerHTML = `<b>${head}</b>${esc(body)}`;
+    f.hidden = false;
+    if (!R.known.some((k) => text(k) === text(x))) R.known.push(x);
+    $('#place').hidden = true; $('#hint').disabled = true;
+    $('#next').hidden = false;
+    $('#next').innerHTML = (R.i === R.items.length - 1 ? 'See results' : 'Next number') + '<span class="kbd">Enter</span>';
+    renderDots();
+  }
+
+  function strategy(x) {
+    const L = R.L;
+    const known = [...L.bench, ...(settings.keep ? R.known : [])].filter((k) => text(k) !== text(x)).sort((a, b) => a.v - b.v);
+    let lo = null, hi = null;
+    known.forEach((k) => { if (k.v < x.v) lo = k; if (k.v > x.v && !hi) hi = k; });
+    if (!isFrac(x)) {
+      if (lo && hi) {
+        const mid = (lo.v + hi.v) / 2;
+        const side = Math.abs(x.v - mid) < (hi.v - lo.v) * 0.08 ? `about halfway between them` : x.v < mid ? `closer to ${text(lo)}` : `closer to ${text(hi)}`;
+        return `Tip: ${text(x)} is between ${text(lo)} and ${text(hi)}, ${side}.`;
+      }
+      return '';
+    }
+    if (x.v > 1) return `Tip: find 1 first. ${text(x)} is more than one whole: go to 1, then add the extra ${x.w ? `${x.n}/${x.d}` : `${x.n - x.d}/${x.d}`}.`;
+    const half = Math.abs(x.v - 0.5) < 1e-9 ? 'exactly one half' : x.v < 0.5 ? 'less than one half' : 'more than one half';
+    return `Tip: ${text(x)} is ${half}. Imagine the line from 0 to 1 cut into ${x.d} equal pieces, then count ${x.n} of them.`;
+  }
+
+  // ------------------------------------------------------------
+  // Summary
+  // ------------------------------------------------------------
+  function finishRound() {
+    const L = R.L;
+    const avg = R.results.reduce((t, r) => t + r.err, 0) / R.results.length;
+    const stars = roundStars(avg);
+    const b = best();
+    const prev = b[L.id];
+    const isBest = !prev || avg < prev.avg;
+    if (isBest) { b[L.id] = { avg, stars: Math.max(stars, prev ? prev.stars : 0) }; store.set('nlp-best', b); }
+    $('#sum-level').textContent = (L.mode === 'whole' ? 'Whole numbers · ' : 'Fractions · ') + L.name;
+    $('#sum-title').textContent = ['Keep practising', 'Getting there', 'Great placing', 'Excellent placing'][stars];
+    $('#sum-sub').textContent = `Average distance from the true spot: ${avg.toFixed(1)}% of the line${isBest && prev ? ' (a new best)' : ''}.`;
+    $('#sum-stars').innerHTML = starsHTML(stars, 3);
+    $('#sum-line').innerHTML = lineSVG({ pin: null, known: R.results.map((r) => r.x), reveal: null });
+    $('#sum-rows').innerHTML = R.results.map((r) => `<tr><td><b>${html(r.x)}</b></td><td>about ${esc(fmtPin(r.pin, L))}</td><td>${r.err.toFixed(1)}% <span style="color:var(--gold)">${'★'.repeat(r.score)}</span></td><td>${r.hint ? 'Yes' : '–'}</td></tr>`).join('');
+    const idx = LEVELS.findIndex((x) => x.id === L.id);
+    $('#sum-next').hidden = idx >= LEVELS.length - 1;
+    $('#sum-next').onclick = () => startRound(LEVELS[idx + 1].id);
+    $('#sum-again').onclick = () => startRound(L.id);
+    $('#sum-levels').onclick = () => show('levels');
+    show('summary');
+  }
+
+  window.__nlp = { get R() { return R; }, LEVELS, startRound };
+  show('levels');
+})();
+</script>
+</body>
+</html>
