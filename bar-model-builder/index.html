@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Bar Model Builder</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="description" content="A word-problem game where pupils build a bar model of the problem's structure before they calculate.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lexend:wght@400;500;600;700&display=swap">
+<style>
+/* Layout: problem card on the left, the builder canvas (squared maths paper) on the right,
+   then one step at a time underneath: build → name the type → equation → compare with an expert. */
+:root {
+  --bg: #f1f4f2;
+  --paper: #ffffff;
+  --grid: #e3ebf3;
+  --ink: #1c2b36;
+  --muted: #5d6b75;
+  --line: #d3dcd9;
+  --barA: #cfe8e1;        /* plain bar fill, part 1 */
+  --barB: #a9d6c9;        /* plain bar fill, part 2 */
+  --bar-edge: #1c2b36;
+  --unknown: #d9480f;     /* the ? and the step accent */
+  --hl: #ffe066;          /* equation term ↔ model part */
+  --ok: #1d7a46;
+  --bad: #c0392b;
+  --btn: #1c2b36;
+  --btn-ink: #ffffff;
+  --chip: #eef3f8;
+  --chip-on: #1c2b36;
+  --chip-on-ink: #ffffff;
+  --font: "Lexend", "Verdana", system-ui, sans-serif;
+  --radius: 12px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #121a1f; --paper: #19242b; --grid: #223139; --ink: #e8eef2; --muted: #9fb0bb; --line: #2c3c45;
+    --barA: #2f5e55; --barB: #3f7a6d; --bar-edge: #dfe9ee; --unknown: #ff8a50; --hl: #8a6d00;
+    --ok: #4cc283; --bad: #ff7a6b; --btn: #e8eef2; --btn-ink: #121a1f; --chip: #223139; --chip-on: #e8eef2; --chip-on-ink: #121a1f;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #121a1f; --paper: #19242b; --grid: #223139; --ink: #e8eef2; --muted: #9fb0bb; --line: #2c3c45;
+  --barA: #2f5e55; --barB: #3f7a6d; --bar-edge: #dfe9ee; --unknown: #ff8a50; --hl: #8a6d00;
+  --ok: #4cc283; --bad: #ff7a6b; --btn: #e8eef2; --btn-ink: #121a1f; --chip: #223139; --chip-on: #e8eef2; --chip-on-ink: #121a1f;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { margin: 0; }
+body {
+  background: var(--bg); color: var(--ink); font-family: var(--font); font-size: 16px; line-height: 1.5;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 16px 40px;
+}
+.app { max-width: 1240px; margin: 0 auto; display: grid; gap: 16px; }
+h1, h2, h3 { margin: 0; line-height: 1.2; text-wrap: balance; font-weight: 600; }
+button, input, select, textarea { font: inherit; color: inherit; }
+:focus-visible { outline: 3px solid var(--unknown); outline-offset: 2px; }
+.muted { color: var(--muted); }
+.label { font-size: 12px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.panel { background: var(--paper); border: 1px solid var(--line); border-radius: var(--radius); padding: 20px; min-width: 0; }
+.row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.btn { appearance: none; border: 2px solid var(--btn); background: var(--btn); color: var(--btn-ink); font-weight: 600; padding: 9px 16px; border-radius: 10px; cursor: pointer; line-height: 1.2; }
+.btn.ghost { background: transparent; color: var(--ink); border-color: var(--line); }
+.btn.ghost:hover { border-color: var(--ink); }
+.btn.small { padding: 6px 12px; font-size: 14px; }
+.btn:disabled { opacity: .45; cursor: default; }
+
+/* header */
+.bar { display: flex; flex-wrap: wrap; gap: 12px 20px; align-items: center; justify-content: space-between; }
+.brand { display: flex; align-items: center; gap: 12px; }
+.brand svg { flex: none; }
+.brand h1 { font-size: 22px; font-weight: 700; }
+nav.tabs { display: flex; flex-wrap: wrap; gap: 6px; }
+nav.tabs button { appearance: none; border: 0; background: transparent; padding: 8px 14px; border-radius: 10px; cursor: pointer; font-weight: 600; color: var(--muted); }
+nav.tabs button[aria-current="page"] { background: var(--paper); color: var(--ink); box-shadow: inset 0 0 0 1px var(--line); }
+.pupil { display: flex; align-items: center; gap: 8px; font-size: 14px; }
+.pupil input { width: 120px; border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; background: var(--paper); }
+
+/* practise layout */
+.practise { display: grid; grid-template-columns: minmax(0, 340px) minmax(0, 1fr); gap: 16px; align-items: start; }
+.card { display: grid; gap: 14px; position: sticky; top: 16px; }
+.stage-line { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; align-items: center; }
+.pips { display: flex; gap: 4px; align-items: center; }
+.pips i { width: 26px; height: 6px; border-radius: 3px; background: var(--line); }
+.pips i.on { background: var(--ink); }
+.problem-text { font-size: 20px; line-height: 1.65; }
+.chip { appearance: none; border: 1.5px solid var(--line); background: var(--chip); border-radius: 8px; padding: 0 8px; margin: 0 1px; cursor: pointer; font-weight: 600; line-height: 1.5; }
+.chip.name { border-style: dashed; }
+.chip[aria-pressed="true"] { background: var(--chip-on); color: var(--chip-on-ink); border-color: var(--chip-on); }
+.chip.q { color: var(--unknown); border-color: var(--unknown); font-weight: 700; }
+.chip.q[aria-pressed="true"] { background: var(--unknown); color: #fff; }
+.chip-help { font-size: 14px; color: var(--muted); }
+
+.steps { display: grid; gap: 16px; min-width: 0; }
+.stepper { display: flex; flex-wrap: wrap; gap: 6px; }
+.stepper span { font-size: 13px; font-weight: 600; padding: 4px 10px; border-radius: 999px; background: var(--paper); border: 1px solid var(--line); color: var(--muted); }
+.stepper span.now { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+.stepper span.done { color: var(--ok); border-color: var(--ok); }
+
+.toolbar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.tool { appearance: none; border: 1.5px solid var(--line); background: var(--paper); padding: 7px 12px; border-radius: 9px; cursor: pointer; font-size: 14px; font-weight: 600; display: inline-flex; gap: 6px; align-items: center; }
+.tool[aria-pressed="true"] { border-color: var(--ink); background: var(--ink); color: var(--paper); }
+.tool svg { width: 16px; height: 16px; }
+.sep { width: 1px; align-self: stretch; background: var(--line); margin: 0 4px; }
+.tool-help { font-size: 14px; color: var(--muted); min-height: 1.5em; }
+
+.canvas-wrap { position: relative; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: var(--paper); }
+.canvas-wrap.squared { background-image: linear-gradient(var(--grid) 1px, transparent 1px), linear-gradient(90deg, var(--grid) 1px, transparent 1px); background-size: 20px 20px; }
+#canvas { display: block; width: 100%; height: auto; touch-action: none; user-select: none; -webkit-user-select: none; }
+.svg-seg { stroke: var(--bar-edge); stroke-width: 2; }
+.svg-seg.a { fill: var(--barA); } .svg-seg.b { fill: var(--barB); }
+.svg-seg.empty { fill: var(--paper); stroke-dasharray: 5 4; }
+.svg-seg.hl, .svg-br.hl path { filter: drop-shadow(0 0 0 var(--hl)); }
+.svg-seg.hl { fill: var(--hl); }
+.svg-seg.bad { stroke: var(--bad); stroke-width: 3.5; }
+.svg-label { font: 600 20px var(--font); fill: var(--ink); text-anchor: middle; dominant-baseline: central; pointer-events: none; }
+.svg-label.q { fill: var(--unknown); font-weight: 700; font-size: 24px; }
+.svg-br path { fill: none; stroke: var(--ink); stroke-width: 2; }
+.svg-br.hl path { stroke: var(--unknown); stroke-width: 3; }
+.svg-br.hl .svg-label { fill: var(--unknown); }
+.svg-name { fill: var(--chip); stroke: var(--line); stroke-width: 1.5; }
+.svg-name.set { fill: var(--paper); stroke: var(--ink); }
+.svg-name-text { font: 600 15px var(--font); fill: var(--ink); text-anchor: middle; dominant-baseline: central; pointer-events: none; }
+.svg-name-text.ph { fill: var(--muted); font-weight: 400; font-size: 13px; }
+.svg-handle { fill: var(--ink); cursor: ew-resize; }
+.svg-tick { stroke: var(--grid); stroke-width: 1; }
+.svg-dot { fill: var(--ink); }
+.svg-empty-msg { font: 400 16px var(--font); fill: var(--muted); text-anchor: middle; }
+.svg-preview { fill: none; stroke: var(--unknown); stroke-width: 2; stroke-dasharray: 6 4; }
+
+.popover { position: absolute; z-index: 5; background: var(--paper); border: 1px solid var(--ink); border-radius: 10px; padding: 10px; box-shadow: 0 8px 24px rgba(0,0,0,.18); display: grid; gap: 8px; }
+.popover .row { gap: 6px; }
+
+.feedback { border-radius: 10px; padding: 12px 14px; border: 1px solid var(--line); border-left: 6px solid var(--muted); background: var(--paper); }
+.feedback.ok { border-left-color: var(--ok); }
+.feedback.bad { border-left-color: var(--unknown); }
+.feedback b { display: block; margin-bottom: 2px; }
+.feedback .hint { color: var(--muted); font-size: 14px; margin-top: 6px; }
+
+.options { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 8px; }
+.opt { appearance: none; text-align: left; border: 2px solid var(--line); background: var(--paper); border-radius: 10px; padding: 12px; cursor: pointer; display: grid; gap: 4px; }
+.opt:hover { border-color: var(--ink); }
+.opt.right { border-color: var(--ok); }
+.opt.wrong { border-color: var(--bad); }
+.opt b { font-size: 16px; }
+.opt span { font-size: 13px; color: var(--muted); }
+
+.eq-row { display: grid; grid-template-columns: minmax(0, 1fr) 160px auto; gap: 10px; align-items: end; }
+.field { display: grid; gap: 4px; }
+.field input, .field select, .field textarea { border: 1.5px solid var(--line); border-radius: 9px; padding: 10px 12px; background: var(--paper); min-width: 0; }
+.field input:focus, .field select:focus, .field textarea:focus { border-color: var(--ink); outline: none; }
+#eq-input { font-size: 22px; font-weight: 600; letter-spacing: .02em; }
+#ans-input { font-size: 22px; font-weight: 600; }
+.ops { display: flex; flex-wrap: wrap; gap: 6px; }
+.ops button { min-width: 40px; }
+
+.compare { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.compare figure { margin: 0; display: grid; gap: 6px; }
+.compare figcaption { font-weight: 600; }
+.mini { border: 1px solid var(--line); border-radius: 10px; background: var(--paper); }
+.mini svg { display: block; width: 100%; height: auto; }
+.eq-show { font-size: 20px; font-weight: 600; }
+.notice { border-radius: 10px; padding: 10px 14px; background: var(--paper); border: 1px dashed var(--ink); }
+
+/* teacher + dashboard */
+.teacher { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+.checks { display: grid; gap: 8px; }
+.checks label { display: flex; gap: 10px; align-items: center; cursor: pointer; }
+.checks input { width: 18px; height: 18px; accent-color: var(--ink); }
+.form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+.table-wrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; min-width: 760px; font-variant-numeric: tabular-nums; }
+th, td { text-align: left; padding: 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+.pill { display: inline-block; font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 999px; background: var(--chip); margin: 0 4px 4px 0; }
+.custom-list { display: grid; gap: 8px; }
+.custom-item { display: flex; justify-content: space-between; gap: 10px; align-items: flex-start; border: 1px solid var(--line); border-radius: 10px; padding: 10px; }
+
+/* print */
+.print-card { background: #fff; color: #1c2b36; border: 1px solid var(--line); border-radius: 8px; padding: 18px; display: grid; gap: 10px; }
+.print-card .ptext { font-size: 18px; }
+.blank-model { height: 260px; border: 1px solid #b9c6d3; background-image: linear-gradient(#e3ebf3 1px, transparent 1px), linear-gradient(90deg, #e3ebf3 1px, transparent 1px); background-size: 8mm 8mm; }
+.print-lines { display: grid; gap: 14px; }
+.print-lines div { border-bottom: 1px solid #1c2b36; height: 26px; }
+
+@media (max-width: 900px) {
+  .practise, .teacher { grid-template-columns: minmax(0, 1fr); }
+  .card { position: static; }
+  .compare { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 520px) {
+  .eq-row { grid-template-columns: minmax(0, 1fr); }
+  .problem-text { font-size: 18px; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+@media print {
+  body { background: #fff; padding: 0; }
+  body > .app > *:not(#view-print) { display: none !important; }
+  #view-print .no-print { display: none !important; }
+  .print-card { border: 0; break-after: page; }
+  @page { size: A4 portrait; margin: 14mm; }
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="bar">
+    <div class="brand">
+      <svg width="40" height="28" viewBox="0 0 40 28" aria-hidden="true"><rect x="1" y="2" width="22" height="10" fill="var(--barA)" stroke="var(--bar-edge)" stroke-width="2"/><rect x="23" y="2" width="14" height="10" fill="var(--barB)" stroke="var(--bar-edge)" stroke-width="2"/><path d="M1 20 v4 h36 v-4" fill="none" stroke="var(--unknown)" stroke-width="2.5"/></svg>
+      <h1>Bar Model Builder</h1>
+    </div>
+    <nav class="tabs" aria-label="Main">
+      <button type="button" data-view="practise" aria-current="page">Practise</button>
+      <button type="button" data-view="teacher">Teacher</button>
+      <button type="button" data-view="dash">Dashboard</button>
+    </nav>
+    <label class="pupil">Pupil <input id="pupil" maxlength="20" autocomplete="off"></label>
+  </header>
+
+  <!-- ============ PRACTISE ============ -->
+  <section id="view-practise" class="practise" aria-label="Practise">
+    <div class="panel card" id="card">
+      <div class="stage-line">
+        <span class="label" id="prob-count"></span>
+        <span class="row" style="gap:8px"><span class="pips" id="stage-pips" aria-hidden="true"></span><span style="font-size:13px;font-weight:600" id="stage-name"></span></span>
+      </div>
+      <div class="problem-text" id="problem-text"></div>
+      <div class="row">
+        <button class="btn ghost small" type="button" id="read-aloud">Read aloud</button>
+        <button class="chip q" type="button" id="chip-q" aria-pressed="false" title="The amount you need to find">?</button>
+      </div>
+      <div class="chip-help" id="chip-help">Tap a number or name, then tap a bar part, a bracket or a name tag to label it. Use <b style="color:var(--unknown)">?</b> for the amount you need to find.</div>
+    </div>
+
+    <div class="steps">
+      <div class="stepper" id="stepper"></div>
+
+      <!-- Step: build -->
+      <div class="panel" id="step-build" style="display:grid;gap:12px">
+        <div class="row" style="justify-content:space-between">
+          <h2 id="build-title">Build the model</h2>
+          <span class="muted" style="font-size:14px" id="build-sub"></span>
+        </div>
+        <div class="toolbar" id="toolbar"></div>
+        <div class="tool-help" id="tool-help"></div>
+        <div class="canvas-wrap" id="canvas-wrap"><svg id="canvas" xmlns="http://www.w3.org/2000/svg"></svg></div>
+        <div class="feedback" id="build-feedback" hidden></div>
+        <div class="row">
+          <button class="btn" type="button" id="check-model">Check my model</button>
+          <span class="muted" style="font-size:14px">You can only work out the answer once the model is right.</span>
+        </div>
+      </div>
+
+      <!-- Step: abstract (equation only) -->
+      <div class="panel" id="step-abstract" hidden style="display:grid;gap:10px">
+        <h2>Equation only</h2>
+        <p class="muted" style="margin:0">You have built this kind of model correctly several times. Picture the bars in your head this time.</p>
+        <div class="row"><button class="btn ghost" type="button" id="show-model">Show me a model</button><span class="muted" style="font-size:14px">Free to use. Your teacher can see how often it is used.</span></div>
+        <div class="mini" id="abstract-model" hidden></div>
+      </div>
+
+      <!-- Step: name the schema -->
+      <div class="panel" id="step-name" hidden style="display:grid;gap:12px">
+        <h2>What type of problem is this?</h2>
+        <div class="options" id="schema-options"></div>
+        <div class="feedback" id="name-feedback" hidden></div>
+      </div>
+
+      <!-- Step: equation -->
+      <div class="panel" id="step-eq" hidden style="display:grid;gap:12px">
+        <h2>Write the calculation, then solve</h2>
+        <p class="muted" style="margin:0">Numbers you type light up on the model, so you can check they are the right parts.</p>
+        <div class="eq-row">
+          <div class="field"><label for="eq-input" class="label">Calculation</label><input id="eq-input" autocomplete="off" inputmode="text" placeholder="e.g. 40 − 15"></div>
+          <div class="field"><label for="ans-input" class="label">Answer</label><input id="ans-input" autocomplete="off" inputmode="decimal"></div>
+          <button class="btn" type="button" id="check-eq">Check</button>
+        </div>
+        <div class="ops" aria-label="Insert a symbol"><button class="btn ghost small" type="button" data-op="+">+</button><button class="btn ghost small" type="button" data-op="−">−</button><button class="btn ghost small" type="button" data-op="×">×</button><button class="btn ghost small" type="button" data-op="÷">÷</button><button class="btn ghost small" type="button" data-op="(">(</button><button class="btn ghost small" type="button" data-op=")">)</button></div>
+        <div class="feedback" id="eq-feedback" hidden></div>
+      </div>
+
+      <!-- Step: compare with expert -->
+      <div class="panel" id="step-review" hidden style="display:grid;gap:14px">
+        <h2>Compare with an expert model</h2>
+        <div class="compare">
+          <figure><figcaption>Your model</figcaption><div class="mini" id="review-yours"></div></figure>
+          <figure><figcaption>An expert model</figcaption><div class="mini" id="review-expert"></div></figure>
+        </div>
+        <div class="eq-show" id="review-eq"></div>
+        <p class="muted" style="margin:0" id="review-note"></p>
+        <div class="notice" id="stage-notice" hidden></div>
+        <div class="row"><button class="btn" type="button" id="next-problem">Next problem</button></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ TEACHER ============ -->
+  <section id="view-teacher" class="teacher" hidden aria-label="Teacher">
+    <div class="panel" style="display:grid;gap:18px">
+      <h2>Practice settings</h2>
+      <div class="field">
+        <span class="label">Problem types</span>
+        <div class="checks" id="schema-checks"></div>
+      </div>
+      <div class="field">
+        <label class="label" for="range">Number range</label>
+        <select id="range"><option value="20">Up to 20</option><option value="100">Up to 100</option><option value="1000">Up to 1,000</option></select>
+        <span class="muted" style="font-size:14px">The counters stage always uses numbers small enough to count.</span>
+      </div>
+      <div class="field">
+        <span class="label">Set a pupil's stage</span>
+        <div class="form-grid">
+          <select id="jump-schema" aria-label="Problem type"></select>
+          <select id="jump-stage" aria-label="Stage"></select>
+          <button class="btn ghost" type="button" id="jump-go">Apply to current pupil</button>
+        </div>
+        <span class="muted" style="font-size:14px">Pupils move up a stage after 3 correct models in a row, and back a stage after 2 wrong first tries in a row.</span>
+      </div>
+      <label class="checks"><span style="display:flex;gap:10px;align-items:center"><input type="checkbox" id="opt-read"> Show the Read aloud button</span></label>
+      <div class="field">
+        <span class="label">Print kit</span>
+        <div class="row"><button class="btn ghost" type="button" id="open-print">Problem cards and blank templates</button></div>
+      </div>
+      <div style="display:grid;gap:8px;font-size:14px" class="muted">
+        <b style="color:var(--ink)">Why it is built this way</b>
+        <span>Schema-based instruction teaches pupils to recognise the problem type and draw its structure. In a randomised trial with Grade 3 pupils with maths difficulties it beat the control (g = 0.46). Concreteness fading (counters, then bars, then equations) improved transfer. There is no trial of a bar model game yet, so this game itself still needs validating.</span>
+        <span>Sources: <a href="https://experts.umn.edu/en/publications/a-randomized-controlled-trial-of-the-impact-of-schema-based-instr/" target="_blank" rel="noopener">Jitendra et al.</a> · <a href="https://www.learningandthebrain.com/blog/?p=5200" target="_blank" rel="noopener">Fyfe, McNeil &amp; Borjas</a> · <a href="https://pcl.sitehost.iu.edu/rgoldsto/courses/cogscilearning/McNeilFyfe12.pdf" target="_blank" rel="noopener">McNeil &amp; Fyfe</a></span>
+      </div>
+    </div>
+
+    <div class="panel" style="display:grid;gap:14px">
+      <h2>Write your own problem</h2>
+      <p class="muted" style="margin:0">Choose the type, enter the numbers, then write the story. The structure drives the model check, so the game can mark any valid model.</p>
+      <div class="form-grid">
+        <div class="field"><label class="label" for="cp-schema">Type</label><select id="cp-schema"></select></div>
+      </div>
+      <div class="form-grid" id="cp-fields"></div>
+      <div class="field"><label class="label" for="cp-text">Story</label><textarea id="cp-text" rows="3" placeholder="Write the problem. Use the same numbers as above."></textarea></div>
+      <div class="feedback" id="cp-feedback" hidden></div>
+      <div class="field" id="cp-preview-wrap" hidden><span class="label">Expert model for this problem</span><div class="mini" id="cp-preview"></div></div>
+      <div class="row"><button class="btn ghost" type="button" id="cp-check">Preview</button><button class="btn" type="button" id="cp-save">Save problem</button></div>
+      <div class="field"><span class="label">Your problems</span><div class="custom-list" id="cp-list"></div></div>
+    </div>
+  </section>
+
+  <!-- ============ DASHBOARD ============ -->
+  <section id="view-dash" hidden aria-labelledby="dash-h">
+    <div class="panel" style="display:grid;gap:14px">
+      <div class="row" style="justify-content:space-between;align-items:end">
+        <div style="display:grid;gap:2px"><h2 id="dash-h">Dashboard</h2><span class="muted">Saved on this device only. Success is solving new word problems on paper two weeks later.</span></div>
+        <div class="row"><button class="btn ghost" type="button" id="dash-example">Load example pupils</button><span class="row" id="dash-clear-wrap"><button class="btn ghost" type="button" id="dash-clear">Clear data</button></span></div>
+      </div>
+      <div id="dash-body"></div>
+      <p class="muted" style="margin:0;font-size:14px"><b>Model accuracy:</b> models right on the first check. <b>Type named:</b> problem type named correctly. <b>Models shown:</b> how often a pupil at the equation-only stage asked to see a model.</p>
+    </div>
+  </section>
+
+  <!-- ============ PRINT ============ -->
+  <section id="view-print" hidden aria-label="Print kit">
+    <div style="display:grid;gap:16px">
+      <div class="panel no-print" style="display:grid;gap:10px">
+        <h2>Print kit</h2>
+        <p class="muted" style="margin:0">Six problem cards from the selected types, each with a blank squared template for drawing the bar model on paper.</p>
+        <div class="row"><button class="btn" type="button" id="do-print">Print</button><button class="btn ghost" type="button" id="print-new">New set</button><button class="btn ghost" type="button" id="print-back">Back</button><span class="muted" id="print-note"></span></div>
+      </div>
+      <div id="print-root" style="display:grid;gap:16px"></div>
+    </div>
+  </section>
+</div>
+<script src="app.js"></script>
+</body>
+</html>

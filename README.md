@@ -1,6 +1,6 @@
 # Lumi's Constellations
 
-> **Also in this repo:** [Number Line Race](number-line-race/), a linear number board game demo for ages 4–8.
+> **Also in this repo:** [Number Line Race](number-line-race/), a linear number board game demo for ages 4–8, and [Bar Model Builder](bar-model-builder/), a word-problem game for ages 7–13.
 
 A browser game for classroom retrieval practice. Students answer questions to light up constellations, guided by Lumi the owl. The game is built for learning first: it uses retrieval practice, explanatory feedback, spacing, interleaving and mastery-based levels, and it gives the teacher a report at the end.
 
