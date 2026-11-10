@@ -1,0 +1,1169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Number Line Race</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="description" content="A linear number board game that builds a mental number line: equal numbered squares, count on from where you are.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lexend:wght@400;600;700&family=Fredoka:wght@500;600&display=swap">
+<style>
+/* Layout: one straight numbered track across the top, the turn controls (number callout + spinner) underneath.
+   Decoration stays out of the track so the numerals carry all the weight. */
+:root {
+  --bg: #eaeff6;
+  --surface: #ffffff;
+  --surface-2: #f4f7fb;
+  --ink: #14213d;
+  --muted: #59657e;
+  --line: #d3dbe7;
+  --track: #dbe3ee;
+  --hi: #ffd23f;          /* the square being counted */
+  --hi-ink: #14213d;
+  --landmark: #22304f;    /* tens landmarks */
+  --landmark-ink: #ffffff;
+  --btn: #14213d;
+  --btn-ink: #ffffff;
+  --ok: #17803f;
+  --bad: #b8430f;
+  --seg1: #ffd23f;
+  --seg2: #ffffff;
+  --p1: #e2323f; --p2: #1c6bd6; --p3: #23955a; --p4: #8a3fb5;
+  --font-num: "Lexend", "Verdana", system-ui, sans-serif;
+  --font-display: "Fredoka", "Lexend", system-ui, sans-serif;
+  --radius: 14px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e1524; --surface: #162036; --surface-2: #1c2843; --ink: #eef2fb; --muted: #a6b1c8;
+    --line: #2c3a5b; --track: #111a2c; --landmark: #d4dcec; --landmark-ink: #14213d;
+    --btn: #eef2fb; --btn-ink: #14213d; --ok: #46c17a; --bad: #ff8c5a; --seg2: #22304f;
+    --p1: #ff5866; --p2: #4b93ff; --p3: #3cc67a; --p4: #b770e6; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0e1524; --surface: #162036; --surface-2: #1c2843; --ink: #eef2fb; --muted: #a6b1c8;
+  --line: #2c3a5b; --track: #111a2c; --landmark: #d4dcec; --landmark-ink: #14213d;
+  --btn: #eef2fb; --btn-ink: #14213d; --ok: #46c17a; --bad: #ff8c5a; --seg2: #22304f;
+  --p1: #ff5866; --p2: #4b93ff; --p3: #3cc67a; --p4: #b770e6; color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { margin: 0; }
+body {
+  background: var(--bg); color: var(--ink); font-family: var(--font-num); font-size: 16px; line-height: 1.45;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 16px 32px;
+}
+.app { max-width: 1180px; margin: 0 auto; display: grid; gap: 16px; }
+h1, h2, h3 { font-family: var(--font-display); font-weight: 600; margin: 0; text-wrap: balance; line-height: 1.15; }
+button { font: inherit; color: inherit; }
+:focus-visible { outline: 3px solid var(--p2); outline-offset: 2px; }
+.muted { color: var(--muted); }
+.label { font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+
+/* ---------- top bar ---------- */
+.bar { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px; justify-content: space-between; }
+.brand { display: flex; align-items: center; gap: 12px; }
+.brand-mark { display: grid; grid-template-columns: repeat(5, 10px); gap: 2px; }
+.brand-mark i { height: 10px; background: var(--ink); border-radius: 2px; }
+.brand-mark i:nth-child(3) { background: var(--hi); }
+.brand h1 { font-size: 24px; }
+.bar-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.btn {
+  appearance: none; border: 2px solid var(--btn); background: var(--btn); color: var(--btn-ink);
+  font-weight: 700; padding: 10px 18px; border-radius: 999px; cursor: pointer; font-size: 16px; line-height: 1.1;
+}
+.btn.ghost { background: transparent; color: var(--ink); border-color: var(--line); }
+.btn.ghost:hover { border-color: var(--ink); }
+.btn.big { font-size: 22px; padding: 16px 28px; }
+.btn.ok { background: var(--ok); border-color: var(--ok); color: #fff; }
+.btn.bad { background: transparent; border-color: var(--bad); color: var(--bad); }
+.btn:disabled { opacity: .4; cursor: default; }
+.kbd { font-size: 12px; font-weight: 700; border: 1px solid currentColor; border-radius: 6px; padding: 1px 6px; margin-left: 8px; opacity: .7; }
+
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 20px; min-width: 0; }
+
+/* ---------- setup ---------- */
+.setup { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+.setup-main { display: grid; gap: 20px; }
+.levels { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.level {
+  text-align: left; border: 2px solid var(--line); background: var(--surface-2); border-radius: 12px; padding: 14px;
+  cursor: pointer; display: grid; gap: 6px; align-content: start;
+}
+.level[aria-pressed="true"] { border-color: var(--ink); background: var(--surface); box-shadow: inset 0 0 0 1px var(--ink); }
+.level .range { font-family: var(--font-num); font-weight: 700; font-size: 28px; line-height: 1; }
+.level .goal { font-size: 14px; }
+.tag { justify-self: start; font-size: 12px; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: var(--track); }
+.tag.exp { background: var(--hi); color: var(--hi-ink); }
+.field { display: grid; gap: 8px; }
+.seg { display: flex; flex-wrap: wrap; gap: 8px; }
+.seg button { border: 2px solid var(--line); background: var(--surface-2); padding: 10px 14px; border-radius: 10px; cursor: pointer; text-align: left; flex: 1 1 180px; }
+.seg button[aria-pressed="true"] { border-color: var(--ink); background: var(--surface); }
+.seg b { display: block; }
+.seg small { color: var(--muted); }
+.players { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+.player-in { display: flex; align-items: center; gap: 8px; border: 2px solid var(--line); border-radius: 10px; padding: 6px 10px; background: var(--surface-2); }
+.player-in input { border: 0; background: transparent; font: inherit; font-weight: 700; width: 100%; min-width: 0; color: var(--ink); }
+.player-in input:focus { outline: none; }
+.player-in:focus-within { border-color: var(--ink); }
+.row-gap { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+.why { display: grid; gap: 12px; font-size: 15px; }
+.why ol { margin: 0; padding-left: 20px; display: grid; gap: 8px; }
+.why a { color: inherit; }
+.check { display: flex; gap: 10px; align-items: flex-start; cursor: pointer; }
+.check input { width: 20px; height: 20px; margin-top: 2px; accent-color: var(--ink); flex: none; }
+
+/* ---------- board ---------- */
+.board-scroll { overflow-x: auto; padding: 8px 4px 28px; }
+.board { position: relative; margin: 0 auto; }
+.row { display: grid; grid-template-columns: repeat(var(--cols), minmax(0, 1fr)); gap: 4px; min-width: calc(var(--cols) * 30px); max-width: calc(var(--cols) * 96px); margin: 0 auto; background: var(--track); padding: 6px; border-radius: 12px; }
+.grid-wrap { display: grid; grid-template-columns: 1fr 10fr; gap: 4px; min-width: 330px; max-width: 640px; margin: 0 auto; background: var(--track); padding: 6px; border-radius: 12px; }
+.grid { display: grid; grid-template-columns: repeat(10, minmax(0, 1fr)); gap: 4px; }
+.sq {
+  appearance: none; border: 0; margin: 0; padding: 0; aspect-ratio: 1; border-radius: 8px; background: var(--surface);
+  color: var(--ink); display: grid; place-items: start center; padding-top: 12%; font-family: var(--font-num); font-weight: 700;
+  font-size: var(--sq-font, 28px); line-height: 1; position: relative; cursor: default; font-variant-numeric: tabular-nums;
+  box-shadow: inset 0 -3px 0 var(--line);
+}
+.sq.landmark { background: var(--landmark); color: var(--landmark-ink); box-shadow: none; }
+.sq.next { outline: 3px dashed var(--ink); outline-offset: -3px; }
+.sq.lit, .sq.model { background: var(--hi); color: var(--hi-ink); box-shadow: none; }
+.sq.model { transform: scale(1.06); transition: transform .15s; }
+.tap-mode .sq { cursor: pointer; }
+.tap-mode .sq:hover { box-shadow: inset 0 0 0 3px var(--muted); }
+.sq.finish::after, .start::after { position: absolute; top: calc(100% + 8px); left: 50%; transform: translateX(-50%); font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); white-space: nowrap; font-family: var(--font-num); }
+.sq.finish::after { content: "Finish"; }
+.start { position: relative; aspect-ratio: 1; border-radius: 8px; border: 2px dashed var(--muted); align-self: end; }
+.start::after { content: "Start"; }
+.frac { display: inline-grid; justify-items: center; line-height: 1; }
+.frac span:first-child { border-bottom: 2px solid currentColor; padding: 0 2px 2px; }
+.frac span:last-child { padding-top: 2px; }
+.tokens { position: absolute; inset: 0; pointer-events: none; }
+.token {
+  position: absolute; left: 0; top: 0; display: grid; place-items: center; color: #fff; font-weight: 700;
+  font-family: var(--font-num); transition: transform .28s cubic-bezier(.3,.7,.3,1); box-shadow: 0 2px 0 rgba(0,0,0,.25);
+}
+.token.circle { border-radius: 50%; }
+.token.square { border-radius: 4px; }
+.token.triangle { clip-path: polygon(50% 0, 100% 100%, 0 100%); box-shadow: none; padding-top: 25%; }
+.token.diamond { clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%); box-shadow: none; }
+.token.active { z-index: 2; }
+
+/* ---------- turn area ---------- */
+.game-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px; }
+.turn { display: flex; align-items: center; gap: 10px; font-size: 20px; font-weight: 700; }
+.chip { width: 22px; height: 22px; flex: none; }
+.clock { font-variant-numeric: tabular-nums; }
+.play { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 16px; }
+.callout { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 20px; align-items: center; }
+.bignum {
+  width: clamp(120px, 18vw, 180px); aspect-ratio: 1; border-radius: 20px; background: var(--surface-2); border: 2px solid var(--line);
+  display: grid; place-items: center; font-size: clamp(56px, 9vw, 92px); font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums;
+}
+.bignum.on { background: var(--hi); color: var(--hi-ink); border-color: var(--hi); }
+.bignum .frac span:first-child { border-bottom-width: 5px; }
+.prompt { display: grid; gap: 12px; min-width: 0; }
+.prompt-text { font-size: 22px; font-weight: 700; line-height: 1.3; }
+.prompt-sub { color: var(--muted); }
+.actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.spin-panel { display: grid; justify-items: center; gap: 12px; align-content: start; }
+.spinner { width: min(220px, 100%); aspect-ratio: 1; max-width: 100%; }
+.spinner svg { width: 100%; height: 100%; display: block; }
+#arrow { transform-origin: 100px 100px; transition: transform 1.1s cubic-bezier(.15,.75,.25,1); }
+.spin-result { font-size: 18px; font-weight: 700; min-height: 1.5em; text-align: center; }
+.notice { background: var(--surface-2); border: 1px solid var(--line); border-left: 6px solid var(--hi); border-radius: 10px; padding: 10px 14px; }
+.notice.err { border-left-color: var(--bad); }
+.stats-mini { display: flex; flex-wrap: wrap; gap: 16px; font-size: 14px; color: var(--muted); }
+
+/* ---------- check ---------- */
+.check-card { max-width: 820px; margin: 0 auto; display: grid; gap: 20px; text-align: center; justify-items: center; }
+.check-q { font-size: 28px; font-weight: 700; }
+.est { width: 100%; max-width: 720px; padding: 40px 24px 16px; cursor: crosshair; touch-action: none; user-select: none; }
+.est-line { position: relative; height: 6px; background: var(--ink); border-radius: 3px; }
+.est-line::before, .est-line::after { content: ""; position: absolute; top: -12px; width: 4px; height: 30px; background: var(--ink); border-radius: 2px; }
+.est-line::before { left: -2px; } .est-line::after { right: -2px; }
+.est-ends { display: flex; justify-content: space-between; font-size: 24px; font-weight: 700; margin-top: 20px; }
+.est-mark { position: absolute; top: -34px; width: 0; height: 0; }
+.est-mark::before { content: ""; position: absolute; left: -3px; top: 10px; width: 6px; height: 40px; background: var(--p2); border-radius: 3px; }
+.est-mark::after { content: ""; position: absolute; left: -10px; top: -4px; width: 20px; height: 20px; border-radius: 50%; background: var(--p2); }
+.cmp { display: flex; gap: 20px; justify-content: center; flex-wrap: wrap; }
+.cmp button { width: 160px; height: 140px; font-size: 56px; font-weight: 700; border-radius: 18px; border: 3px solid var(--line); background: var(--surface-2); cursor: pointer; }
+.cmp button:hover { border-color: var(--ink); }
+.progress-dots { display: flex; gap: 6px; }
+.progress-dots i { width: 10px; height: 10px; border-radius: 50%; background: var(--line); }
+.progress-dots i.done { background: var(--ink); }
+
+/* ---------- dashboard ---------- */
+.dash-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: end; gap: 12px; }
+.table-wrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; min-width: 720px; font-variant-numeric: tabular-nums; }
+th, td { text-align: left; padding: 12px 10px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+th { font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.dose { display: flex; gap: 4px; }
+.dose i { width: 18px; height: 10px; border-radius: 3px; background: var(--line); }
+.dose i.on { background: var(--ink); }
+.dose i.extra { outline: 1px dashed var(--muted); background: transparent; }
+.dose i.extra.on { background: var(--ink); outline: 0; }
+.pill { display: inline-block; font-size: 13px; font-weight: 700; padding: 3px 10px; border-radius: 999px; background: var(--track); white-space: nowrap; }
+.pill.go { background: var(--ok); color: #fff; }
+.pill.warn { background: var(--hi); color: var(--hi-ink); }
+.delta-good { color: var(--ok); font-weight: 700; }
+.delta-bad { color: var(--bad); font-weight: 700; }
+.empty { text-align: center; padding: 40px 20px; display: grid; gap: 12px; justify-items: center; }
+.confirm { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+
+/* ---------- print kit ---------- */
+.print-kit { display: grid; gap: 20px; }
+.pk-sheet { background: #fff; color: #14213d; border: 1px solid var(--line); border-radius: 8px; padding: 24px; display: grid; gap: 16px; }
+.pk-board { display: grid; gap: 3px; }
+.pk-board.line { grid-template-columns: repeat(var(--cols), minmax(0, 1fr)); }
+.pk-board.grid10 { grid-template-columns: repeat(10, minmax(0, 1fr)); max-width: 620px; }
+.pk-board div { aspect-ratio: 1; border: 2px solid #14213d; display: grid; place-items: center; font-family: var(--font-num); font-weight: 700; font-size: 26px; color: #14213d; background: #fff; }
+.pk-board.grid10 div { font-size: 18px; }
+.pk-board div.lm { background: #22304f; color: #fff; }
+.pk-board div.st { border-style: dashed; font-size: 12px; text-transform: uppercase; }
+.pk-spinners { display: flex; gap: 32px; flex-wrap: wrap; }
+.pk-spinners figure { margin: 0; text-align: center; font-weight: 700; }
+.pk-spinners svg { width: 200px; height: 200px; }
+.pk-cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 24px; }
+.pk-script ol { margin: 0; padding-left: 20px; display: grid; gap: 6px; }
+.pk-record { width: 100%; min-width: 0; }
+.pk-record td, .pk-record th { border: 1px solid #14213d; height: 30px; color: #14213d; }
+
+@media (max-width: 860px) {
+  .setup, .play { grid-template-columns: minmax(0, 1fr); }
+  .levels { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 480px) {
+  .callout { grid-template-columns: minmax(0, 1fr); justify-items: center; text-align: center; }
+  .actions { justify-content: center; }
+  .cmp button { width: 120px; height: 110px; font-size: 44px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .token, #arrow, .sq.model { transition: none !important; }
+}
+@media print {
+  body { background: #fff; padding: 0; }
+  body > .app > *:not(#view-print) { display: none !important; }
+  #view-print .no-print { display: none !important; }
+  .pk-sheet { border: 0; padding: 0; break-after: page; }
+  @page { size: A4 landscape; margin: 12mm; }
+}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <header class="bar">
+    <div class="brand">
+      <div class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
+      <h1>Number Line Race</h1>
+    </div>
+    <nav class="bar-actions" aria-label="Main">
+      <button class="btn ghost" id="nav-setup" type="button">Set up</button>
+      <button class="btn ghost" id="nav-print" type="button">Print kit</button>
+      <button class="btn ghost" id="nav-dash" type="button">Teacher dashboard</button>
+    </nav>
+  </header>
+
+  <!-- ================= SETUP ================= -->
+  <section id="view-setup" class="setup" aria-labelledby="setup-h">
+    <div class="panel setup-main">
+      <div class="field">
+        <h2 id="setup-h">Set up a session</h2>
+        <p class="muted" style="margin:0">Pick a range, add the players, start. Your choices are remembered for next time.</p>
+      </div>
+
+      <div class="field">
+        <span class="label">Board range</span>
+        <div class="levels" id="levels"></div>
+      </div>
+
+      <div class="field">
+        <span class="label">How children count</span>
+        <div class="seg" id="mode">
+          <button type="button" data-v="say" aria-pressed="true"><b>Say it aloud</b><small>A partner or the teacher checks each number. Whiteboard and pair play.</small></button>
+          <button type="button" data-v="tap" aria-pressed="false"><b>Tap each square</b><small>Solo play: tap the squares in order while saying them. Not yet tested in trials.</small></button>
+        </div>
+      </div>
+
+      <div class="field">
+        <span class="label">Spinner</span>
+        <div class="seg" id="spin">
+          <button type="button" data-v="2" aria-pressed="true"><b>1 – 2</b><small>Short moves, easy to count aloud</small></button>
+          <button type="button" data-v="6" aria-pressed="false"><b>1 – 6</b><small>Longer moves for bigger boards</small></button>
+        </div>
+      </div>
+
+      <div class="field" id="layout-field">
+        <span class="label">1–100 layout</span>
+        <div class="seg" id="layout">
+          <button type="button" data-v="rows" aria-pressed="true"><b>Rows, left to right</b><small>Each row reads left to right (as in Laski &amp; Siegler)</small></button>
+          <button type="button" data-v="snake" aria-pressed="false"><b>Snake</b><small>Keeps neighbours touching; alternate rows run right to left</small></button>
+        </div>
+      </div>
+
+      <div class="field">
+        <span class="label">Players or teams (up to 4)</span>
+        <div class="players" id="players"></div>
+        <div class="row-gap">
+          <button class="btn ghost" type="button" id="add-player">Add player</button>
+          <button class="btn ghost" type="button" id="remove-player">Remove player</button>
+        </div>
+      </div>
+
+      <div class="field">
+        <span class="label">Options</span>
+        <label class="check"><input type="checkbox" id="opt-voice"><span><b>Model numbers with voice after a mistake.</b> The device says the numbers while the squares light up.</span></label>
+        <div class="row-gap">
+          <label for="opt-length">Session length</label>
+          <select id="opt-length"><option value="15">15 minutes</option><option value="20">20 minutes</option></select>
+        </div>
+      </div>
+
+      <div class="row-gap">
+        <button class="btn big" type="button" id="start">Start game</button>
+        <span class="muted" id="start-note"></span>
+      </div>
+    </div>
+
+    <aside class="panel why" aria-labelledby="why-h">
+      <h3 id="why-h">What makes it work</h3>
+      <p class="muted" style="margin:0">Four 15-minute sessions of a linear 1–10 board game closed the number-line estimation gap for low-income preschoolers. The same game with colours instead of numbers, or on a circular board, did not.</p>
+      <ol>
+        <li><b>Straight, equal, numbered squares.</b> Distance on the board matches number size.</li>
+        <li><b>Say the number you land on.</b> "6, 7", never "1, 2". Counting on is the active ingredient.</li>
+        <li><b>Numbers always visible</b> on every square.</li>
+        <li><b>Small steps.</b> A 1–2 spinner keeps every move short enough to count and check.</li>
+        <li><b>Short, repeated sessions.</b> 15–20 minutes, 4–6 times over 2–3 weeks.</li>
+        <li><b>Tens structure for 1–100</b>, with landmarks on 10, 20, 30…</li>
+      </ol>
+      <p class="muted" style="margin:0">No rewards, shops, power-ups or timers on counting: they pull attention off the numbers.</p>
+      <p style="margin:0;font-size:14px">Sources: <a href="https://www.cmu.edu/dietrich/psychology/cs/research-teaching/docs/2013LaskiSieglerNumberBoardGames.pdf" target="_blank" rel="noopener">Laski &amp; Siegler 2014</a> · <a href="https://ies.ed.gov/ncee/WWC/Study/73725" target="_blank" rel="noopener">WWC review</a> · <a href="https://www.cmu.edu/homepage/health/2014/winter/counting-counts.shtml" target="_blank" rel="noopener">CMU summary</a></p>
+    </aside>
+  </section>
+
+  <!-- ================= GAME ================= -->
+  <section id="view-game" hidden aria-label="Game">
+    <div class="app" style="gap:16px">
+      <div class="game-head">
+        <div class="turn" id="turn"></div>
+        <div class="row-gap">
+          <span class="muted clock" id="clock"></span>
+          <button class="btn ghost" type="button" id="end-session">End session</button>
+        </div>
+      </div>
+      <div class="notice" id="time-notice" hidden>Today's session time is up. Finish this game, then do the quick check.</div>
+
+      <div class="panel" style="padding:12px">
+        <div class="board-scroll"><div class="board" id="board"></div></div>
+      </div>
+
+      <div class="play">
+        <div class="panel callout">
+          <div class="bignum" id="bignum" aria-hidden="true"></div>
+          <div class="prompt">
+            <div class="prompt-text" id="prompt" aria-live="polite"></div>
+            <div class="prompt-sub" id="prompt-sub"></div>
+            <div class="actions" id="count-actions" hidden>
+              <button class="btn big ok" type="button" id="said-right">Said it right<span class="kbd">Enter</span></button>
+              <button class="btn big bad" type="button" id="said-wrong">Not quite<span class="kbd">X</span></button>
+            </div>
+            <div class="actions" id="end-actions" hidden>
+              <button class="btn big" type="button" id="play-again">Play again</button>
+              <button class="btn big ghost" type="button" id="go-check">Finish: quick check</button>
+            </div>
+            <div class="stats-mini" id="stats-mini"></div>
+          </div>
+        </div>
+        <div class="panel spin-panel">
+          <div class="spinner" id="spinner"></div>
+          <div class="spin-result" id="spin-result" aria-live="polite"></div>
+          <button class="btn big" type="button" id="spin-btn">Spin<span class="kbd">Space</span></button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= CHECK ================= -->
+  <section id="view-check" hidden aria-label="Quick check">
+    <div class="panel check-card" id="check"></div>
+  </section>
+
+  <!-- ================= DASHBOARD ================= -->
+  <section id="view-dash" hidden aria-labelledby="dash-h">
+    <div class="panel" style="display:grid;gap:16px">
+      <div class="dash-head">
+        <div style="display:grid;gap:4px">
+          <h2 id="dash-h">Teacher dashboard</h2>
+          <span class="muted">Saved on this device only. Success is learning a week after the last session, not time played.</span>
+        </div>
+        <div class="row-gap">
+          <button class="btn ghost" type="button" id="copy-csv">Copy as CSV</button>
+          <button class="btn ghost" type="button" id="example-data">Load example data</button>
+          <span class="confirm" id="clear-wrap"><button class="btn ghost" type="button" id="clear-data">Clear data</button></span>
+        </div>
+      </div>
+      <div id="dash-body"></div>
+      <p class="muted" style="margin:0;font-size:14px"><b>Count-on accuracy:</b> moves counted correctly first time. <b>Estimation error:</b> how far the child's mark was from the true spot on an empty number line, as a percentage of the line (lower is better). <b>Ready for the next level:</b> at least 90% count-on accuracy in two sessions in a row. That threshold still needs validating.</p>
+    </div>
+  </section>
+
+  <!-- ================= PRINT KIT ================= -->
+  <section id="view-print" hidden aria-label="Print kit">
+    <div class="print-kit">
+      <div class="panel no-print" style="display:grid;gap:12px">
+        <h2>Print kit</h2>
+        <p class="muted" style="margin:0">For classrooms without devices: the board for the range chosen in Set up, two spinners, a teacher script and a record sheet. Each sheet prints on its own A4 landscape page.</p>
+        <div class="row-gap"><button class="btn" type="button" id="do-print">Print</button><span class="muted" id="print-note"></span></div>
+      </div>
+      <div id="print-root" style="display:grid;gap:20px"></div>
+    </div>
+  </section>
+
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  // ============================================================
+  // Data + settings
+  // ============================================================
+  const LEVELS = [
+    { id: 1, range: '1–10', ages: 'Ages 4–5', goal: 'Numeral order and size', n: 10, spin: 2, kind: 'line', tested: true },
+    { id: 2, range: '1–20', ages: 'Ages 5–6', goal: 'Counting on, teen numbers', n: 20, spin: 2, kind: 'line', tested: true },
+    { id: 3, range: '1–100', ages: 'Ages 6–8', goal: 'Tens structure, two-digit size', n: 100, spin: 6, kind: 'grid', tested: true },
+    { id: 4, range: '0–1', ages: 'Ages 7+', goal: 'Fractions as sizes on a line', n: 10, spin: 2, kind: 'frac', tested: false },
+  ];
+  const COLORS = ['--p1', '--p2', '--p3', '--p4'];
+  const SHAPES = ['circle', 'square', 'triangle', 'diamond'];
+  const DEFAULT_NAMES = ['Maya', 'Leo', 'Ana', 'Sam'];
+  const WORDS = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'];
+  const ORD = ['', 'tenth', 'tenths'];
+
+  const store = {
+    get(k, d) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch (e) { return d; } },
+    set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* storage blocked: keep playing */ } },
+  };
+  const settings = Object.assign({ level: 1, mode: 'say', spin: 2, layout: 'rows', players: ['Maya', 'Leo'], voice: true, length: 15 },
+    store.get('nlr-settings', {}));
+  const saveSettings = () => store.set('nlr-settings', settings);
+  const level = () => LEVELS.find((l) => l.id === settings.level) || LEVELS[0];
+
+  const $ = (s) => document.querySelector(s);
+  const el = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; };
+  const reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const wait = (ms) => new Promise((r) => setTimeout(r, reduced ? Math.min(ms, 250) : ms));
+  const color = (i) => `var(${COLORS[i]})`;
+
+  // labels for a square index on the current board
+  function labelHTML(L, i) {
+    if (L.kind !== 'frac') return String(i);
+    if (i === 0) return '0';
+    if (i === L.n) return '1';
+    return `<span class="frac"><span>${i}</span><span>10</span></span>`;
+  }
+  function labelText(L, i) { return L.kind !== 'frac' ? String(i) : i === 0 ? '0' : i === L.n ? '1' : `${i}/10`; }
+  function spoken(L, i) {
+    if (L.kind !== 'frac') return String(i);
+    if (i === 0) return 'zero';
+    if (i === L.n) return 'one whole';
+    return `${WORDS[i]} ${i === 1 ? ORD[1] : ORD[2]}`;
+  }
+
+  // ============================================================
+  // Views
+  // ============================================================
+  const views = ['setup', 'game', 'check', 'dash', 'print'];
+  function show(v) {
+    views.forEach((n) => { $('#view-' + n).hidden = n !== v; });
+    if (v === 'dash') renderDash();
+    if (v === 'print') renderPrint();
+    if (v === 'setup') renderSetup();
+    window.scrollTo(0, 0);
+  }
+  $('#nav-setup').onclick = () => { if (game && game.phase !== 'done' && !$('#view-game').hidden) return confirmLeave('setup'); show('setup'); };
+  $('#nav-dash').onclick = () => { if (game && !$('#view-game').hidden && game.phase !== 'done') return confirmLeave('dash'); show('dash'); };
+  $('#nav-print').onclick = () => { if (game && !$('#view-game').hidden && game.phase !== 'done') return confirmLeave('print'); show('print'); };
+
+  function confirmLeave(target) {
+    setPrompt('Leave this game? Progress in this session will not be saved.', '');
+    const a = $('#end-actions');
+    a.hidden = false;
+    a.innerHTML = '';
+    const yes = el('button', 'btn big bad', 'Leave game'); yes.type = 'button';
+    const no = el('button', 'btn big ghost', 'Keep playing'); no.type = 'button';
+    yes.onclick = () => { stopClock(); game = null; show(target); };
+    no.onclick = () => { restoreEndActions(); renderTurn(); };
+    a.append(yes, no);
+    $('#count-actions').hidden = true;
+  }
+  function restoreEndActions() {
+    const a = $('#end-actions');
+    a.innerHTML = '<button class="btn big" type="button" id="play-again">Play again</button><button class="btn big ghost" type="button" id="go-check">Finish: quick check</button>';
+    a.hidden = true;
+    $('#play-again').onclick = newGame;
+    $('#go-check').onclick = startCheck;
+  }
+
+  // ============================================================
+  // Setup
+  // ============================================================
+  function renderSetup() {
+    const lv = $('#levels');
+    lv.innerHTML = '';
+    LEVELS.forEach((L) => {
+      const b = el('button', 'level');
+      b.type = 'button';
+      b.setAttribute('aria-pressed', String(settings.level === L.id));
+      b.innerHTML = `<span class="label">Level ${L.id}</span><span class="range">${L.range}</span><span class="goal">${L.goal}</span>
+        <span class="muted" style="font-size:13px">${L.ages}${L.kind === 'grid' ? ' · 10 × 10' : L.kind === 'frac' ? ' · tenths' : ''}</span>
+        <span class="tag ${L.tested ? '' : 'exp'}">${L.tested ? 'Tested in trials' : 'Experimental'}</span>`;
+      b.onclick = () => { settings.level = L.id; settings.spin = L.spin; saveSettings(); renderSetup(); };
+      lv.append(b);
+    });
+    segSet('#mode', settings.mode);
+    segSet('#spin', String(settings.spin));
+    segSet('#layout', settings.layout);
+    $('#layout-field').hidden = level().kind !== 'grid';
+    const pl = $('#players');
+    pl.innerHTML = '';
+    settings.players.forEach((name, i) => {
+      const w = el('label', 'player-in');
+      w.innerHTML = `<span class="chip token ${SHAPES[i]}" style="position:static;background:${color(i)};width:22px;height:22px"></span><input id="player-${i}" maxlength="16" aria-label="Player ${i + 1} name">`;
+      const inp = w.querySelector('input');
+      inp.value = name;
+      inp.oninput = () => { settings.players[i] = inp.value; saveSettings(); };
+      pl.append(w);
+    });
+    $('#add-player').disabled = settings.players.length >= 4;
+    $('#remove-player').disabled = settings.players.length <= 1;
+    $('#opt-voice').checked = !!settings.voice;
+    $('#opt-length').value = String(settings.length);
+    const L = level();
+    $('#start-note').textContent = L.tested ? '' : 'Level 4 extends the principle to fractions. It has not been validated yet.';
+  }
+  function segSet(sel, v) { document.querySelectorAll(sel + ' button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.v === v))); }
+  function segWire(sel, key, num) {
+    document.querySelectorAll(sel + ' button').forEach((b) => {
+      b.onclick = () => { settings[key] = num ? parseInt(b.dataset.v, 10) : b.dataset.v; saveSettings(); segSet(sel, b.dataset.v); };
+    });
+  }
+  segWire('#mode', 'mode'); segWire('#spin', 'spin', true); segWire('#layout', 'layout');
+  $('#add-player').onclick = () => { if (settings.players.length < 4) { settings.players.push(DEFAULT_NAMES[settings.players.length]); saveSettings(); renderSetup(); } };
+  $('#remove-player').onclick = () => { if (settings.players.length > 1) { settings.players.pop(); saveSettings(); renderSetup(); } };
+  $('#opt-voice').onchange = (e) => { settings.voice = e.target.checked; saveSettings(); };
+  $('#opt-length').onchange = (e) => { settings.length = parseInt(e.target.value, 10); saveSettings(); };
+  $('#start').onclick = () => startSession();
+
+  // ============================================================
+  // Session + game state
+  // ============================================================
+  let session = null; // spans several games until the quick check
+  let game = null;
+  let squares = {};
+  let tokenEls = [];
+  let clockTimer = null;
+
+  function startSession() {
+    const names = settings.players.map((n, i) => (n || '').trim() || DEFAULT_NAMES[i]);
+    session = {
+      started: Date.now(), level: settings.level, mode: settings.mode,
+      players: names.map((name, i) => ({ name, i, moves: 0, movesCorrect: 0, numbersSaid: 0, numbersWrong: 0 })),
+      games: 0,
+    };
+    newGame();
+    show('game');
+    startClock();
+  }
+
+  function newGame() {
+    const L = level();
+    session.games++;
+    game = {
+      L, phase: 'spin', turn: (session.games - 1) % session.players.length,
+      pos: session.players.map(() => 0), spinValue: 0, steps: 0, from: 0, done: 0, hadError: false, finish: L.n,
+    };
+    restoreEndActions();
+    buildBoard();
+    renderSpinner();
+    $('#bignum').innerHTML = ''; $('#bignum').classList.remove('on');
+    $('#spin-result').textContent = '';
+    renderTurn();
+    requestAnimationFrame(() => placeTokens(false));
+  }
+
+  function startClock() {
+    stopClock();
+    const tick = () => {
+      if (!session) return;
+      const s = Math.floor((Date.now() - session.started) / 1000);
+      $('#clock').textContent = `Session ${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')} of ${settings.length}:00`;
+      $('#time-notice').hidden = s < settings.length * 60;
+    };
+    tick();
+    clockTimer = setInterval(tick, 1000);
+  }
+  function stopClock() { if (clockTimer) clearInterval(clockTimer); clockTimer = null; }
+
+  // ============================================================
+  // Board
+  // ============================================================
+  function square(L, i) {
+    const b = el('button', 'sq', labelHTML(L, i));
+    b.type = 'button';
+    b.dataset.i = i;
+    b.setAttribute('aria-label', labelText(L, i));
+    const landmark = L.kind === 'frac' ? (i === 0 || i === 5 || i === L.n) : (i % 10 === 0);
+    if (landmark) b.classList.add('landmark');
+    if (i === L.n) b.classList.add('finish');
+    b.onclick = () => onSquareTap(i);
+    squares[i] = b;
+    return b;
+  }
+
+  function buildBoard() {
+    const L = game.L;
+    const board = $('#board');
+    board.innerHTML = '';
+    squares = {};
+    board.classList.toggle('tap-mode', session.mode === 'tap');
+    if (L.kind === 'grid') {
+      const wrap = el('div', 'grid-wrap');
+      const start = el('div', 'start');
+      const grid = el('div', 'grid');
+      grid.style.setProperty('--sq-font', 'clamp(13px, 2.2vw, 20px)');
+      for (let r = 9; r >= 0; r--) {
+        const nums = [];
+        for (let c = 0; c < 10; c++) nums.push(r * 10 + c + 1);
+        if (settings.layout === 'snake' && r % 2 === 1) nums.reverse();
+        nums.forEach((v) => grid.append(square(L, v)));
+      }
+      wrap.append(start, grid);
+      board.append(wrap);
+      squares[0] = start;
+    } else {
+      const row = el('div', 'row');
+      const cols = L.kind === 'frac' ? L.n + 1 : L.n + 1;
+      row.style.setProperty('--cols', cols);
+      row.style.setProperty('--sq-font', L.n > 10 ? 'clamp(13px, 2.1vw, 26px)' : L.kind === 'frac' ? 'clamp(12px, 1.9vw, 20px)' : 'clamp(18px, 3.6vw, 40px)');
+      if (L.kind !== 'frac') { const start = el('div', 'start'); row.append(start); squares[0] = start; }
+      for (let i = L.kind === 'frac' ? 0 : 1; i <= L.n; i++) row.append(square(L, i));
+      board.append(row);
+    }
+    const layer = el('div', 'tokens');
+    tokenEls = session.players.map((p, i) => {
+      const t = el('div', 'token ' + SHAPES[i]);
+      t.textContent = p.name.charAt(0).toUpperCase();
+      t.style.background = color(i);
+      t.setAttribute('aria-hidden', 'true');
+      layer.append(t);
+      return t;
+    });
+    board.append(layer);
+  }
+
+  function placeTokens(animate) {
+    if (!game) return;
+    const board = $('#board');
+    const br = board.getBoundingClientRect();
+    const groups = {};
+    game.pos.forEach((p, i) => { (groups[p] = groups[p] || []).push(i); });
+    tokenEls.forEach((t, i) => {
+      const p = game.pos[i];
+      const sq = squares[p];
+      if (!sq) return;
+      const r = sq.getBoundingClientRect();
+      const g = groups[p], n = g.length, k = g.indexOf(i);
+      // counters share the bottom band of the square so the numeral above stays visible
+      const size = Math.max(12, Math.min(r.width * 0.36, (r.width * 0.9) / n));
+      const x = r.left - br.left + (r.width - size * n) / 2 + k * size;
+      const y = r.top - br.top + r.height - size - r.height * 0.06;
+      if (!animate) t.style.transition = 'none';
+      t.style.width = size + 'px'; t.style.height = size + 'px';
+      t.style.fontSize = Math.round(size * 0.5) + 'px';
+      t.style.transform = `translate(${x}px, ${y}px)`;
+      t.classList.toggle('active', i === game.turn);
+      if (!animate) { void t.offsetWidth; t.style.transition = ''; }
+    });
+  }
+  window.addEventListener('resize', () => placeTokens(false));
+
+  function clearHighlights() { Object.values(squares).forEach((s) => s.classList && s.classList.remove('next', 'lit', 'model')); }
+
+  // ============================================================
+  // Turn loop
+  // ============================================================
+  function cur() { return session.players[game.turn]; }
+
+  function setPrompt(main, sub) { $('#prompt').innerHTML = main; $('#prompt-sub').innerHTML = sub || ''; }
+
+  function renderTurn() {
+    const p = cur();
+    const L = game.L;
+    $('#turn').innerHTML = `<span class="chip token ${SHAPES[p.i]}" style="position:static;background:${color(p.i)}"></span>${esc(p.name)}'s turn <span class="muted" style="font-weight:400;font-size:16px">· Level ${L.id}, ${L.range}</span>`;
+    const pos = game.pos[game.turn];
+    clearHighlights();
+    if (game.phase === 'spin') {
+      setPrompt(`${esc(p.name)}, spin!`, pos === 0 && L.kind !== 'frac' ? 'You are at the start.' : `You are on <b>${labelHTML(L, pos)}</b>.`);
+      $('#spin-btn').disabled = false;
+      $('#count-actions').hidden = true;
+    } else if (game.phase === 'count') {
+      $('#spin-btn').disabled = true;
+      const left = game.steps - game.done;
+      const here = game.pos[game.turn];
+      const where = here === 0 && L.kind !== 'frac' ? 'at the start' : `on <b>${labelHTML(L, here)}</b>`;
+      if (session.mode === 'say') {
+        setPrompt(`You're ${where}. Say the next number.`, `${left} more to go. Count on from where you are, not from 1.`);
+        $('#count-actions').hidden = false;
+        const nxt = squares[here + 1];
+        if (nxt) nxt.classList.add('next');
+      } else {
+        setPrompt(`You're ${where}. Tap the next square and say its number.`, `${left} more to go.`);
+        $('#count-actions').hidden = true;
+      }
+    }
+    renderMiniStats();
+    placeTokens(true);
+  }
+
+  function renderMiniStats() {
+    $('#stats-mini').innerHTML = session.players.map((p) =>
+      `<span><b style="color:${color(p.i)}">${esc(p.name)}</b> ${p.moves ? Math.round(100 * p.movesCorrect / p.moves) + '% counted right first time' : 'no moves yet'}</span>`).join('');
+  }
+
+  // ---------- spinner ----------
+  let arrowRot = 0;
+  function spinnerSVG(n, withArrow) {
+    const cx = 100, cy = 100, r = 92;
+    let s = `<svg viewBox="0 0 200 200" role="img" aria-label="Spinner with values 1 to ${n}">`;
+    for (let k = 0; k < n; k++) {
+      const a0 = (k / n) * 2 * Math.PI - Math.PI / 2, a1 = ((k + 1) / n) * 2 * Math.PI - Math.PI / 2;
+      const x0 = cx + r * Math.cos(a0), y0 = cy + r * Math.sin(a0), x1 = cx + r * Math.cos(a1), y1 = cy + r * Math.sin(a1);
+      const large = 1 / n > 0.5 ? 1 : 0;
+      const am = (a0 + a1) / 2, lx = cx + r * 0.62 * Math.cos(am), ly = cy + r * 0.62 * Math.sin(am);
+      s += `<path d="M${cx} ${cy} L${x0.toFixed(2)} ${y0.toFixed(2)} A${r} ${r} 0 ${large} 1 ${x1.toFixed(2)} ${y1.toFixed(2)} Z" fill="${k % 2 ? 'var(--seg2, #fff)' : 'var(--seg1, #ffd23f)'}" stroke="var(--ink, #14213d)" stroke-width="3"/>`;
+      s += `<text x="${lx.toFixed(1)}" y="${ly.toFixed(1)}" text-anchor="middle" dominant-baseline="central" font-family="Lexend, Verdana, sans-serif" font-weight="700" font-size="${n > 2 ? 30 : 46}" fill="var(--ink, #14213d)">${k + 1}</text>`;
+    }
+    s += `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="var(--ink, #14213d)" stroke-width="4"/>`;
+    if (withArrow) s += `<g id="arrow" style="transform: rotate(${arrowRot}deg)"><path d="M100 22 L112 100 L100 112 L88 100 Z" fill="var(--ink, #14213d)"/><circle cx="100" cy="100" r="10" fill="var(--ink, #14213d)"/></g>`;
+    else s += `<circle cx="100" cy="100" r="6" fill="#14213d"/>`;
+    return s + '</svg>';
+  }
+  function renderSpinner() { $('#spinner').innerHTML = spinnerSVG(settings.spin, true); }
+
+  async function spin() {
+    if (!game || game.phase !== 'spin') return;
+    const g = game;
+    game.phase = 'spinning';
+    $('#spin-btn').disabled = true;
+    const n = settings.spin;
+    const v = 1 + Math.floor(Math.random() * n);
+    const target = ((v - 0.5) / n) * 360; // segment centre, clockwise from top
+    const base = arrowRot - (arrowRot % 360);
+    arrowRot = base + 360 * (reduced ? 1 : 3) + target;
+    $('#arrow').style.transform = `rotate(${arrowRot}deg)`;
+    $('#spin-result').textContent = '';
+    await wait(1150);
+    if (game !== g) return; // a new game started meanwhile
+    const pos = game.pos[game.turn];
+    game.spinValue = v;
+    game.steps = Math.min(v, game.finish - pos);
+    game.from = pos; game.done = 0; game.hadError = false;
+    $('#spin-result').textContent = game.steps < v ? `${v}! Only ${game.steps} to the finish.` : `${v}! Move ${v} square${v > 1 ? 's' : ''}.`;
+    game.phase = 'count';
+    renderTurn();
+  }
+  $('#spin-btn').onclick = spin;
+
+  // ---------- counting ----------
+  function step() {
+    const L = game.L;
+    const i = game.turn;
+    game.pos[i]++;
+    game.done++;
+    cur().numbersSaid++;
+    const p = game.pos[i];
+    clearHighlights();
+    squares[p].classList.add('lit');
+    showBig(L, p);
+    placeTokens(true);
+    if (game.done >= game.steps) endMove();
+    else renderTurn();
+  }
+  function showBig(L, p) {
+    const b = $('#bignum');
+    b.innerHTML = labelHTML(L, p);
+    b.classList.add('on');
+  }
+
+  function onSaid(ok) {
+    if (!game || game.phase !== 'count' || session.mode !== 'say') return;
+    if (ok) step(); else mistake();
+  }
+  $('#said-right').onclick = () => onSaid(true);
+  $('#said-wrong').onclick = () => onSaid(false);
+
+  function onSquareTap(i) {
+    if (!game || game.phase !== 'count' || session.mode !== 'tap') return;
+    if (i === game.pos[game.turn] + 1) step();
+    else mistake(i);
+  }
+
+  async function mistake(tapped) {
+    const L = game.L;
+    const g = game;
+    const live = () => game === g && g.phase === 'model';
+    game.phase = 'model';
+    game.hadError = true;
+    cur().numbersWrong++;
+    $('#count-actions').hidden = true;
+    clearHighlights();
+    const from = game.from;
+    const fromTxt = from === 0 && L.kind !== 'frac' ? 'the start' : labelHTML(L, from);
+    setPrompt(`Let's count it together from ${fromTxt}.`, tapped != null ? `That was ${labelHTML(L, tapped)}. Watch and listen.` : 'Watch and listen.');
+    // token goes back to where the move started
+    game.pos[game.turn] = from;
+    game.done = 0;
+    placeTokens(true);
+    await wait(700);
+    if (!live()) return;
+    // model the correct counting-on, one square at a time
+    for (let k = 1; k <= game.steps; k++) {
+      if (!live()) return;
+      const sq = squares[from + k];
+      clearHighlights();
+      sq.classList.add('model');
+      showBig(L, from + k);
+      say(spoken(L, from + k));
+      await wait(1000);
+    }
+    if (!live()) return;
+    clearHighlights();
+    $('#bignum').classList.remove('on'); $('#bignum').innerHTML = '';
+    game.phase = 'count';
+    renderTurn();
+    setPrompt(`Now you. ${$('#prompt').innerHTML}`, $('#prompt-sub').innerHTML);
+  }
+
+  async function endMove() {
+    const p = cur();
+    p.moves++;
+    if (!game.hadError) p.movesCorrect++;
+    game.phase = 'moved';
+    $('#count-actions').hidden = true;
+    renderMiniStats();
+    if (game.pos[game.turn] >= game.finish) {
+      game.phase = 'done';
+      setPrompt(`${esc(p.name)} reached ${labelHTML(game.L, game.finish)} first.`, 'Play another game, or finish the session with the quick check.');
+      $('#spin-btn').disabled = true;
+      $('#end-actions').hidden = false;
+      return;
+    }
+    setPrompt(`${esc(p.name)} landed on ${labelHTML(game.L, game.pos[game.turn])}.`, '');
+    const g = game;
+    await wait(1100);
+    if (game !== g || g.phase !== 'moved') return;
+    game.turn = (game.turn + 1) % session.players.length;
+    game.phase = 'spin';
+    $('#bignum').classList.remove('on');
+    $('#spin-result').textContent = '';
+    renderTurn();
+  }
+
+  $('#end-session').onclick = () => startCheck();
+
+  // ---------- voice (modelling only) ----------
+  function say(text) {
+    if (!settings.voice) return;
+    try {
+      if (!window.speechSynthesis) return;
+      window.speechSynthesis.cancel();
+      const u = new SpeechSynthesisUtterance(text);
+      u.rate = 0.85; u.lang = 'en-GB';
+      window.speechSynthesis.speak(u);
+    } catch (e) { /* voice unavailable: the highlight still models the count */ }
+  }
+
+  // ---------- keyboard (whiteboard / teacher) ----------
+  document.addEventListener('keydown', (e) => {
+    if ($('#view-game').hidden || !game) return;
+    if (e.target.matches('input, select, textarea')) return;
+    if (e.code === 'Space' && game.phase === 'spin') { e.preventDefault(); spin(); }
+    else if (e.key === 'Enter' && game.phase === 'count' && session.mode === 'say') { e.preventDefault(); onSaid(true); }
+    else if ((e.key === 'x' || e.key === 'X') && game.phase === 'count' && session.mode === 'say') { e.preventDefault(); onSaid(false); }
+  });
+
+  // ============================================================
+  // Quick check: 2 number-line estimates + 1 "which is bigger?"
+  // ============================================================
+  let check = null;
+  function startCheck() {
+    if (!session) return show('setup');
+    if (game) game.phase = 'done';
+    stopClock();
+    const L = LEVELS.find((l) => l.id === session.level);
+    const items = [];
+    session.players.forEach((p) => {
+      const a = pickTarget(L), b = pickTarget(L, a);
+      let c1 = pickTarget(L), c2 = pickTarget(L, c1);
+      items.push({ p, type: 'est', t: a }, { p, type: 'est', t: b }, { p, type: 'cmp', a: c1, b: c2 });
+    });
+    check = { L, items, idx: 0, results: session.players.map(() => ({ est: [], cmp: [] })) };
+    show('check');
+    renderCheck();
+  }
+  function pickTarget(L, not) {
+    const lo = L.kind === 'grid' ? 5 : L.kind === 'line' && L.n === 20 ? 2 : 1;
+    const hi = L.kind === 'grid' ? 95 : L.n - 1;
+    let v;
+    do { v = lo + Math.floor(Math.random() * (hi - lo + 1)); } while (v === not || (not != null && Math.abs(v - not) < (L.n >= 20 ? 3 : 2)));
+    return v;
+  }
+  function lineMax(L) { return L.kind === 'frac' ? 10 : L.n; }
+
+  function renderCheck() {
+    const c = $('#check');
+    const it = check.items[check.idx];
+    const L = check.L;
+    if (!it) return finishCheck();
+    const per = 3, n = it.p.i;
+    const k = check.idx % per;
+    const dots = [0, 1, 2].map((j) => `<i class="${j < k ? 'done' : ''}"></i>`).join('');
+    const firstForPlayer = k === 0;
+    const header = `<div class="row-gap" style="justify-content:center"><span class="chip token ${SHAPES[n]}" style="position:static;background:${color(n)}"></span><b style="font-size:20px">${esc(it.p.name)}</b><span class="progress-dots">${dots}</span></div>`;
+    if (firstForPlayer && !it.ready) {
+      c.innerHTML = `${header}<h2>Quick check · 30 seconds</h2><p class="muted" style="margin:0;max-width:52ch">Two marks on a number line and one "which is bigger?". No help and no right or wrong shown: this is how we see what is sticking.${session.players.length > 1 ? ` Pass the device to ${esc(it.p.name)}.` : ''}</p>
+        <div class="row-gap"><button class="btn big" type="button" id="ck-go">Start</button><button class="btn ghost" type="button" id="ck-skip">Skip the check</button></div>`;
+      $('#ck-go').onclick = () => { it.ready = true; renderCheck(); };
+      $('#ck-skip').onclick = () => finishCheck(true);
+      return;
+    }
+    if (it.type === 'est') {
+      const max = lineMax(L);
+      const ends = L.kind === 'frac' ? ['0', '1'] : ['0', String(L.n)];
+      c.innerHTML = `${header}<div class="check-q">Where does <span style="white-space:nowrap">${labelHTML(L, it.t)}</span> go?</div>
+        <div class="muted">Tap the line.</div>
+        <div class="est" id="est"><div class="est-line" id="est-line"><div class="est-mark" id="est-mark" hidden></div></div><div class="est-ends"><span>${ends[0]}</span><span>${ends[1]}</span></div></div>
+        <button class="btn big" type="button" id="est-ok" disabled>That's my answer</button>`;
+      let frac = null;
+      const line = $('#est-line');
+      const place = (e) => {
+        const r = line.getBoundingClientRect();
+        const x = (e.touches ? e.touches[0].clientX : e.clientX) - r.left;
+        frac = Math.max(0, Math.min(1, x / r.width));
+        const m = $('#est-mark'); m.hidden = false; m.style.left = (frac * 100) + '%';
+        $('#est-ok').disabled = false;
+      };
+      $('#est').addEventListener('pointerdown', place);
+      $('#est-ok').onclick = () => {
+        const ans = frac * max;
+        const pae = Math.abs(ans - it.t) / max * 100;
+        check.results[n].est.push({ t: labelText(L, it.t), a: Math.round(ans * 10) / 10, pae: Math.round(pae * 10) / 10 });
+        check.idx++; renderCheck();
+      };
+    } else {
+      c.innerHTML = `${header}<div class="check-q">Which is bigger?</div>
+        <div class="cmp"><button type="button" id="cmp-a">${labelHTML(L, it.a)}</button><button type="button" id="cmp-b">${labelHTML(L, it.b)}</button></div>`;
+      const pick = (v, other) => {
+        check.results[n].cmp.push({ a: labelText(L, it.a), b: labelText(L, it.b), ok: v > other });
+        check.idx++; renderCheck();
+      };
+      $('#cmp-a').onclick = () => pick(it.a, it.b);
+      $('#cmp-b').onclick = () => pick(it.b, it.a);
+    }
+  }
+
+  function finishCheck(skipped) {
+    const data = store.get('nlr-data', { children: {} });
+    const minutes = Math.round((Date.now() - session.started) / 6000) / 10;
+    session.players.forEach((p, i) => {
+      const r = check ? check.results[i] : { est: [], cmp: [] };
+      const list = data.children[p.name] = data.children[p.name] || [];
+      list.push({
+        date: new Date().toISOString(), level: session.level, mode: session.mode, minutes,
+        moves: p.moves, movesCorrect: p.movesCorrect, numbersSaid: p.numbersSaid, numbersWrong: p.numbersWrong,
+        est: skipped ? [] : r.est, cmp: skipped ? [] : r.cmp,
+      });
+    });
+    store.set('nlr-data', data);
+    session = null; game = null; check = null;
+    show('dash');
+    flash(skipped ? 'Session saved without the check.' : 'Session saved.');
+  }
+
+  // ============================================================
+  // Dashboard
+  // ============================================================
+  const avg = (a) => (a.length ? a.reduce((s, x) => s + x, 0) / a.length : null);
+  function sessionEst(s) { return avg(s.est.map((e) => e.pae)); }
+  function sessionAcc(s) { return s.moves ? s.movesCorrect / s.moves : null; }
+
+  function renderDash() {
+    const data = store.get('nlr-data', { children: {} });
+    const names = Object.keys(data.children);
+    const body = $('#dash-body');
+    if (!names.length) {
+      body.innerHTML = `<div class="empty"><h3>No sessions yet</h3><p class="muted" style="margin:0;max-width:52ch">Each child's sessions appear here after the quick check: count-on accuracy, estimation error, and sessions played against the 4-session target. Load the example data to see how it looks.</p><button class="btn" type="button" id="dash-start">Set up a session</button></div>`;
+      $('#dash-start').onclick = () => show('setup');
+      return;
+    }
+    const rows = names.map((name) => {
+      const ss = data.children[name];
+      const last = ss[ss.length - 1];
+      const accLast = sessionAcc(last);
+      const ests = ss.map(sessionEst).filter((x) => x != null);
+      const estFirst = ests.length ? ests[0] : null, estLast = ests.length ? ests[ests.length - 1] : null;
+      const cmpAll = ss.flatMap((s) => s.cmp);
+      const cmpPct = cmpAll.length ? Math.round(100 * cmpAll.filter((c) => c.ok).length / cmpAll.length) : null;
+      const sameLevel = ss.filter((s) => s.level === last.level);
+      const lastTwo = sameLevel.slice(-2);
+      const ready = lastTwo.length === 2 && lastTwo.every((s) => s.moves >= 3 && sessionAcc(s) >= 0.9);
+      const dose = Array.from({ length: 6 }, (_, k) => `<i class="${k >= 4 ? 'extra ' : ''}${k < ss.length ? 'on' : ''}"></i>`).join('');
+      let status = '';
+      if (ready) status = last.level < 3 ? `<span class="pill go">Ready for Level ${last.level + 1}</span>` : last.level === 3 ? '<span class="pill go">Ready for Level 4 (experimental)</span>' : '<span class="pill go">Secure</span>';
+      else if (ss.length < 4) status = `<span class="pill">${4 - ss.length} more session${4 - ss.length > 1 ? 's' : ''} to target</span>`;
+      else status = '<span class="pill warn">Keep practising this level</span>';
+      let delta = '';
+      if (estFirst != null && ests.length > 1) {
+        const d = estLast - estFirst;
+        delta = ` <span class="${d <= 0 ? 'delta-good' : 'delta-bad'}">${d <= 0 ? '↓' : '↑'} ${Math.abs(d).toFixed(1)}</span>`;
+      }
+      const tap = ss.some((s) => s.mode === 'tap') ? ' <span class="pill" title="Tap-to-count was not tested in the original studies">tap mode</span>' : '';
+      return `<tr><td><b>${esc(name)}</b>${tap}</td><td style="white-space:nowrap">${last.level} <span class="muted">(${LEVELS[last.level - 1].range})</span></td>
+        <td><div class="dose" title="${ss.length} of 4–6 sessions">${dose}</div><span class="muted" style="font-size:13px">${ss.length} of 4</span></td>
+        <td>${accLast == null ? '–' : Math.round(accLast * 100) + '%'} <span class="muted" style="font-size:13px">(${last.movesCorrect}/${last.moves} moves)</span></td>
+        <td>${estFirst == null ? '–' : ests.length === 1 ? `${estFirst.toFixed(1)}%` : `${estFirst.toFixed(1)}% → ${estLast.toFixed(1)}%${delta}`}</td>
+        <td>${cmpPct == null ? '–' : cmpPct + '%'}</td><td>${status}</td></tr>`;
+    }).join('');
+    body.innerHTML = `<div class="table-wrap"><table><thead><tr><th>Child</th><th>Level</th><th>Sessions</th><th>Count-on accuracy (last)</th><th>Estimation error (first → latest)</th><th>Which is bigger?</th><th>Next step</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+  }
+
+  $('#copy-csv').onclick = () => {
+    const data = store.get('nlr-data', { children: {} });
+    const lines = ['child,date,level,mode,minutes,moves,moves_correct_first_time,estimation_error_pct,compare_correct'];
+    Object.entries(data.children).forEach(([name, ss]) => ss.forEach((s) => {
+      const e = sessionEst(s);
+      lines.push([csv(name), s.date.slice(0, 10), s.level, s.mode, s.minutes, s.moves, s.movesCorrect, e == null ? '' : e.toFixed(1), s.cmp.filter((c) => c.ok).length + '/' + s.cmp.length].join(','));
+    }));
+    const text = lines.join('\n');
+    const done = () => flash('Copied. Paste it into a spreadsheet.');
+    try {
+      navigator.clipboard.writeText(text).then(done, () => fallbackCopy(text, done));
+    } catch (e) { fallbackCopy(text, done); }
+  };
+  function fallbackCopy(text, done) {
+    const ta = el('textarea'); ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0'; document.body.append(ta); ta.select();
+    let ok = false; try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+    ta.remove();
+    if (ok) done(); else flash('Copying is blocked here. Select the table and copy it instead.');
+  }
+  const csv = (s) => /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+
+  $('#example-data').onclick = () => {
+    const data = store.get('nlr-data', { children: {} });
+    const mk = (days, level, moves, correct, ests, cmpOk, mode) => ({
+      date: new Date(Date.now() - days * 864e5).toISOString(), level, mode: mode || 'say', minutes: 15, moves, movesCorrect: correct,
+      numbersSaid: moves * 2, numbersWrong: moves - correct, est: ests.map((p) => ({ t: '?', a: 0, pae: p })), cmp: [{ a: '?', b: '?', ok: cmpOk }],
+    });
+    data.children['Example: Ava'] = [mk(12, 1, 14, 10, [24, 18], false), mk(9, 1, 15, 13, [15, 12], true), mk(5, 1, 16, 15, [9, 8], true), mk(2, 1, 15, 14, [7, 6], true)];
+    data.children['Example: Sam'] = [mk(11, 1, 13, 7, [31, 27], false), mk(6, 1, 14, 10, [26, 22], true)];
+    data.children['Example: Noor'] = [mk(10, 2, 12, 10, [18, 15], true, 'tap'), mk(4, 2, 13, 11, [14, 16], true, 'tap'), mk(1, 2, 14, 12, [12, 11], true, 'tap')];
+    store.set('nlr-data', data);
+    renderDash();
+    flash('Example children added. They are marked "Example".');
+  };
+  $('#clear-data').onclick = () => {
+    const w = $('#clear-wrap');
+    w.innerHTML = '<span class="muted">Delete every saved session on this device?</span><button class="btn bad" type="button" id="clear-yes">Delete all</button><button class="btn ghost" type="button" id="clear-no">Cancel</button>';
+    $('#clear-yes').onclick = () => { store.set('nlr-data', { children: {} }); renderDash(); restoreClear(); flash('All sessions deleted.'); };
+    $('#clear-no').onclick = restoreClear;
+  };
+  const clearHandler = $('#clear-data').onclick;
+  function restoreClear() { $('#clear-wrap').innerHTML = '<button class="btn ghost" type="button" id="clear-data">Clear data</button>'; $('#clear-data').onclick = clearHandler; }
+
+  // ============================================================
+  // Print kit
+  // ============================================================
+  function renderPrint() {
+    const L = level();
+    const root = $('#print-root');
+    let board = '';
+    if (L.kind === 'grid') {
+      let cells = '';
+      for (let r = 9; r >= 0; r--) {
+        const nums = []; for (let c = 0; c < 10; c++) nums.push(r * 10 + c + 1);
+        if (settings.layout === 'snake' && r % 2 === 1) nums.reverse();
+        nums.forEach((v) => { cells += `<div class="${v % 10 === 0 ? 'lm' : ''}">${v}</div>`; });
+      }
+      board = `<div class="pk-board grid10">${cells}</div><p style="margin:0">Start below 1 (bottom left). Finish on 100. Dark squares are the tens.</p>`;
+    } else if (L.n === 20) {
+      const strip = (a, b, startCell) => { let s = startCell ? '<div class="st">Start</div>' : ''; for (let i = a; i <= b; i++) s += `<div class="${i % 10 === 0 ? 'lm' : ''}">${i}</div>`; return `<div class="pk-board line" style="--cols:${b - a + 1 + (startCell ? 1 : 0)}">${s}</div>`; };
+      board = `${strip(1, 10, true)}<p style="margin:0">✂ Cut out both strips and tape strip B to the right end of strip A, so the track stays one straight line.</p>${strip(11, 20, false)}`;
+    } else {
+      let s = L.kind === 'frac' ? '' : '<div class="st">Start</div>';
+      for (let i = L.kind === 'frac' ? 0 : 1; i <= L.n; i++) s += `<div class="${(L.kind === 'frac' ? (i === 0 || i === 5 || i === 10) : i % 10 === 0) ? 'lm' : ''}">${labelHTML(L, i)}</div>`;
+      board = `<div class="pk-board line" style="--cols:${L.kind === 'frac' ? 11 : 11}">${s}</div>`;
+    }
+    root.innerHTML = `
+      <div class="pk-sheet"><h2>Number Line Race · Level ${L.id}, ${L.range}</h2>${board}</div>
+      <div class="pk-sheet">
+        <h2>Spinners</h2>
+        <div class="pk-spinners"><figure>${spinnerSVG(2, false)}<figcaption>1 – 2 (Levels 1, 2 and fractions)</figcaption></figure><figure>${spinnerSVG(6, false)}<figcaption>1 – 6 (Level 3)</figcaption></figure></div>
+        <p style="margin:0">Put a pencil point through a paper clip at the centre and flick the clip.</p>
+      </div>
+      <div class="pk-sheet">
+        <div class="pk-cols">
+          <div class="pk-script"><h2>Teacher script</h2><ol>
+            <li>Play with 2–4 children. Each child picks a counter and puts it on Start.</li>
+            <li>Spin, then move one square at a time, saying the number on each square you land on: "6, 7".</li>
+            <li>If a child counts from 1 ("1, 2") or says a wrong number, move the counter back: "You're on 5. Let's count on together: 6, 7." Then they try again.</li>
+            <li>The first to reach the finish wins. Play again until the session ends.</li>
+            <li>Keep sessions to 15–20 minutes. Plan 4–6 sessions over 2–3 weeks.</li>
+            <li>End each session with the quick check: two marks on an empty 0–${L.kind === 'frac' ? '1' : L.n} line and one "which is bigger?".</li>
+          </ol></div>
+          <div><h2>Record sheet</h2>
+            <table class="pk-record"><thead><tr><th>Child</th><th>Date</th><th>Moves right first time</th><th>Estimate 1</th><th>Estimate 2</th><th>Bigger?</th></tr></thead>
+            <tbody>${'<tr><td></td><td></td><td>&nbsp;&nbsp;&nbsp;/</td><td></td><td></td><td></td></tr>'.repeat(8)}</tbody></table>
+          </div>
+        </div>
+      </div>`;
+  }
+  $('#do-print').onclick = () => {
+    let framed = false;
+    try { framed = window.self !== window.top; } catch (e) { framed = true; }
+    if (framed) { $('#print-note').textContent = 'Printing is blocked in this preview. Open the game file directly in a browser to print.'; return; }
+    window.print();
+  };
+
+  // ============================================================
+  // Utilities
+  // ============================================================
+  function esc(s) { return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+  let flashEl = null;
+  function flash(msg) {
+    if (!flashEl) {
+      flashEl = el('div', 'notice');
+      flashEl.setAttribute('role', 'status');
+      flashEl.style.cssText = 'position:fixed;left:50%;bottom:calc(16px + env(safe-area-inset-bottom, 0px));transform:translateX(-50%);z-index:20;background:var(--surface);box-shadow:0 8px 24px rgba(0,0,0,.18);max-width:calc(100% - 32px)';
+      document.body.append(flashEl);
+    }
+    flashEl.textContent = msg; flashEl.hidden = false;
+    clearTimeout(flash.t); flash.t = setTimeout(() => { flashEl.hidden = true; }, 2600);
+  }
+
+  // test hook for automated checks (read-only state)
+  window.__nlr = { get game() { return game; }, get session() { return session; }, get check() { return check; } };
+
+  restoreEndActions();
+  show('setup');
+})();
+</script>
+</body>
+</html>
